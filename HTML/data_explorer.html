@@ -37,6 +37,7 @@
        explorer needs, so the page doesn't leave a gap or clip it. */
     .explorer-scale-container {
       width: 100%;
+      max-width: 1288px;
       margin: 0 auto;
       overflow: hidden;
     }
@@ -556,6 +557,8 @@
     .explorer-wrap:fullscreen .map-svg-wrap { max-height: calc(100vw * 420 / 960); }
     .explorer-wrap:-webkit-full-screen #globe-wrap { max-height: calc(100vw * 420 / 960); }
     .explorer-wrap:fullscreen #globe-wrap { max-height: calc(100vw * 420 / 960); }
+    .explorer-wrap:-webkit-full-screen .line-chart-wrap { padding-left: 4vw; padding-right: 4vw; }
+    .explorer-wrap:fullscreen .line-chart-wrap { padding-left: 4vw; padding-right: 4vw; }
 
     /* copy toast */
     #copy-toast {
@@ -946,6 +949,7 @@
           </button>
           <div class="sort-custom-dropdown" id="bar-metric-dropdown">
             <div class="sort-custom-option active" data-value="total">Total allocations</div>
+            <div class="sort-custom-option" data-value="alloc_commit">Allocations + Commitments</div>
             <div class="sort-custom-option" data-value="pct">Share of GDP</div>
             <div class="sort-custom-option" data-value="fin">Financial Aid</div>
             <div class="sort-custom-option" data-value="mil">Military Aid</div>
@@ -1077,6 +1081,7 @@ const rows = await USTData.fetchCSV('data_explorer.csv');
 MONTHLY = rows.map(r => ({
   c: r.country, iso: r.iso, y: r.year, m: r.month,
   tot: r.total, fin: r.financial, hum: r.humanitarian, mil: r.military,
+  commit: r.commitments,
   gdp: r.gdp, pct: r.pct_gdp
 }));
 RELEASE_LABEL = await USTData.fetchReleaseLabel(RELEASE_LABEL);
@@ -1131,6 +1136,8 @@ const LINE_COLORS = ['#3a6dc5','#c0392b','#27a66e','#9b59b6','#e8a820','#34a0bd'
      - unitLabelFontSize             : "€ billion" / "% of 2021 GDP" text size
      - padLeft / padRight            : chart left/right margin (px, at the
                                         explorer's native 1155×730 size)
+     - padTop / padBottom            : chart top/bottom margin (px, same
+                                        native size as padLeft/padRight)
      - legendFontSize                : the "United States / Germany / …"
                                         legend row under the chart
      - timelineLabelFontSize         : the scroll-bar (timeline) labels —
@@ -1151,20 +1158,24 @@ const LINE_CHART_STYLE = {
     unitLabelFontSize: '0.95rem',
     padLeft: 20,
     padRight: 40,
+    padTop: 40,
+    padBottom: 35,
     legendFontSize: '0.82rem',
     timelineLabelFontSize: '0.75rem',
     endLabelFontSize: '0.98rem',
     timelineBottomGap: '0.45rem',
   },
   fullscreen: {
-    xAxisFontSize: '0.7rem',
-    yAxisFontSize: '0.7rem',
-    unitLabelFontSize: '0.8rem',
+    xAxisFontSize: '0.8rem',
+    yAxisFontSize: '0.8rem',
+    unitLabelFontSize: '0.9rem',
     padLeft: 0,
     padRight: 10,
-    legendFontSize: '1rem',
+    padTop: 20,
+    padBottom: 15,
+    legendFontSize: '1.1rem',
     timelineLabelFontSize: '0.8rem',
-    endLabelFontSize: '0.8rem',
+    endLabelFontSize: '0.85rem',
     timelineBottomGap: '1rem',
   },
 };
@@ -1232,7 +1243,7 @@ function fixCrimeaFeatures(features){
 }
 
 /* ── selection state ─────────────────── */
-const _top4 = COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c))
+const _top4 = COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c) && c !== EU_INSTITUTIONS_RAW)
   .map(c=>({c,tot:MONTHLY.filter(d=>d.c===c).reduce((s,d)=>s+d.tot,0)}))
   .sort((a,b)=>b.tot-a.tot).slice(0,4).map(d=>d.c);
 let selected = new Set(_top4);
@@ -1257,7 +1268,7 @@ function renderLeftList() {
   const hideOnMap = activeTab === 'map';
 
   let list = COUNTRIES.filter(c => (!q || c.toLowerCase().includes(q))
-    && !AGGREGATE_COUNTRIES.includes(c));
+    && !AGGREGATE_COUNTRIES.includes(c) && c !== EU_INSTITUTIONS_RAW);
 
   list.sort((a,b) => {
     if (sortKey === 'name') return sortDir * a.localeCompare(b);
@@ -1380,7 +1391,7 @@ document.getElementById('left-clear').addEventListener('click', () => {
   renderActiveChart();
 });
 document.getElementById('left-select-all').addEventListener('click', () => {
-  COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c)).forEach(c => selected.add(c));
+  COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c) && c !== EU_INSTITUTIONS_RAW).forEach(c => selected.add(c));
   renderLeftList();
   renderActiveChart();
 });
@@ -1479,6 +1490,7 @@ function getRowData() {
     const fin = rows.reduce((s,d)=>s+d.fin,0);
     const hum = rows.reduce((s,d)=>s+d.hum,0);
     const mil = rows.reduce((s,d)=>s+d.mil,0);
+    const commit = rows.reduce((s,d)=>s+(d.commit||0),0);
     const gdp = rows[0]?.gdp ?? 0;
     const pct = gdp > 0 ? tot / gdp * 100 : 0;  /* cumulative tot as % of 2021 GDP */
     /* first = first month's value, last = last month's value (for change columns) */
@@ -1487,7 +1499,7 @@ function getRowData() {
     const absChange = last - first;
     const relChange = first > 0 ? ((last-first)/first)*100 : null;
     const iso = rows[0]?.iso ?? '';
-    return {c, iso, tot, fin, hum, mil, pct, gdp, first, last, absChange, relChange};
+    return {c, iso, tot, fin, hum, mil, commit, pct, gdp, first, last, absChange, relChange};
   });
 }
 
@@ -1567,6 +1579,7 @@ function getUseVal(metric) {
   if(metric==='fin') return v=>v.fin;
   if(metric==='mil') return v=>v.mil;
   if(metric==='hum') return v=>v.hum;
+  if(metric==='alloc_commit') return v=>(v.tot||0)+(v.commit||0);
   return v=>v.tot;
 }
 function metricTitle(m) {
@@ -1574,6 +1587,7 @@ function metricTitle(m) {
   if(m==='fin') return 'Financial Aid to Ukraine by Donor Country';
   if(m==='mil') return 'Military Aid to Ukraine by Donor Country';
   if(m==='hum') return 'Humanitarian Aid to Ukraine by Donor Country';
+  if(m==='alloc_commit') return 'Allocations and Commitments to Ukraine by Donor Country';
   return 'Aid to Ukraine by Donor Country';
 }
 function metricSubtitle(m) {
@@ -1581,6 +1595,7 @@ function metricSubtitle(m) {
   if(m==='fin') return 'Bilateral government financial aid allocations to Ukraine in € billion.';
   if(m==='mil') return 'Bilateral government military aid allocations to Ukraine in € billion.';
   if(m==='hum') return 'Bilateral government humanitarian aid allocations to Ukraine in € billion.';
+  if(m==='alloc_commit') return 'Bilateral government aid allocations vs. commitments to Ukraine, in € billion.';
   return 'Total bilateral government aid allocations to Ukraine (military, financial, and humanitarian) in € billion.';
 }
 
@@ -1696,9 +1711,10 @@ function getMapDataAtIdx(idx){
     const fin=rows.reduce((s,d)=>s+d.fin,0);
     const hum=rows.reduce((s,d)=>s+d.hum,0);
     const mil=rows.reduce((s,d)=>s+d.mil,0);
+    const commit=rows.reduce((s,d)=>s+(d.commit||0),0);
     const gdp=isoR.gdp;
     const pct=gdp>0?tot/gdp*100:0;
-    m[isoR.iso]={tot,pct,fin,hum,mil,c};
+    m[isoR.iso]={tot,pct,fin,hum,mil,commit,c};
   });
   return m;
 }
@@ -1849,9 +1865,12 @@ const TT_LAYOUT = {
   },
 };
 
-function buildBreakdownHTML(info){
+function buildBreakdownHTML(info, isAllocCommit){
   const b = TT_LAYOUT.breakdown;
-  const rows = [
+  const rows = isAllocCommit ? [
+    ['Allocations', `€${fmt(info.tot)}B`],
+    ['Commitments', `€${fmt(info.commit)}B`],
+  ] : [
     ['Share of GDP', `${fmt(info.pct,2)}%`],
     ['Military', `€${fmt(info.mil)}B`],
     ['Humanitarian', `€${fmt(info.hum)}B`],
@@ -1868,9 +1887,9 @@ function buildBreakdownHTML(info){
     </div>`;
 }
 
-function buildTooltipHTML(info){
+function buildTooltipHTML(info, isAllocCommit){
   const t = TT_LAYOUT;
-  const hasData = info.tot > 0;
+  const hasData = isAllocCommit ? (info.tot > 0 || info.commit > 0) : info.tot > 0;
   const alignStyle = t.direction === 'column' ? 'stretch' : 'flex-end';
   const rangeStart = YMS[mapYmStartIdx], rangeEnd = YMS[mapYmIdx];
   const rangeLabel = `${ymLabel(rangeStart.y,rangeStart.m)}–${ymLabel(rangeEnd.y,rangeEnd.m)}`;
@@ -1880,13 +1899,13 @@ function buildTooltipHTML(info){
         <div style="flex:1 1 auto;min-width:0;width:${t.textColumn.width}">
           <div class="tt-name" style="overflow-wrap:break-word">${info.c}</div>
           ${hasData ? `
-          <div style="font-size:0.864rem;color:#999;margin-bottom:0">Total Aid</div>
+          <div style="font-size:0.864rem;color:#999;margin-bottom:0">${isAllocCommit ? 'Allocations' : 'Total Aid'}</div>
           <div class="tt-val">€${fmt(info.tot)}B</div>
           <div style="font-size:0.792rem;color:#aaa;margin-top:0.2rem">${rangeLabel}</div>
           ` : `<div style="color:#999;font-size:0.936rem">No data</div>
           <div style="font-size:0.792rem;color:#aaa;margin-top:0.2rem">${rangeLabel}</div>`}
         </div>
-        ${hasData ? buildBreakdownHTML(info) : ''}
+        ${hasData ? buildBreakdownHTML(info, isAllocCommit) : ''}
       </div>
     </div>`;
 }
@@ -1915,8 +1934,10 @@ function showCountryTT(event, countryName) {
   if(!isoR) return;
   const info=getCurrentRangeMapData()[isoR.iso];
   if(!info) return;
+  const barMetric=document.querySelector('#bar-metric-dropdown .sort-custom-option.active')?.dataset.value;
+  const isAllocCommit = activeTab==='bar' && barMetric==='alloc_commit';
   const tt=document.getElementById('map-tooltip');
-  tt.innerHTML=buildTooltipHTML(info);
+  tt.innerHTML=buildTooltipHTML(info, isAllocCommit);
   positionTooltip(tt, event);
 }
 function hideCountryTT(){ document.getElementById('map-tooltip').style.display='none'; }
@@ -2441,7 +2462,7 @@ function wrapLabelAuto(name, maxWidth, measureFn) {
 
 function renderLine(){
   const metric=document.querySelector('#line-metric-dropdown .sort-custom-option.active')?.dataset.value||'total';
-  const toPlot=selected.size>0?[...selected]:['United States','Germany','United Kingdom'];
+  const toPlot=[...selected];
 
   /* Fixed native canvas size (matches .line-chart-wrap at the explorer's
      native 1155×730 layout). Hard-coded rather than measured live via
@@ -2456,7 +2477,7 @@ function renderLine(){
   const LINE_CHART_NATIVE_W=953, LINE_CHART_NATIVE_H=489;
   const W=LINE_CHART_NATIVE_W, H=LINE_CHART_NATIVE_H;
   const lcStyle=currentLineChartStyle();
-  const pad={t:40,r:lcStyle.padRight,b:35,l:lcStyle.padLeft};
+  const pad={t:lcStyle.padTop,r:lcStyle.padRight,b:lcStyle.padBottom,l:lcStyle.padLeft};
   const iW=W-pad.l-pad.r,iH=H-pad.t-pad.b;
 
   const svg=d3.select('#line-svg').attr('viewBox',`0 0 ${W} ${H}`).attr('width',W).attr('height',H);
@@ -2654,11 +2675,12 @@ const TOP_SPACING_PX=20, BOTTOM_SPACING_PX=5; // gap above first bar / below las
 function renderBar(){
   const metric=document.querySelector('#bar-metric-dropdown .sort-custom-option.active')?.dataset.value||'total';
   const barUseVal = getUseVal(metric);
-  let rows=getRowData().filter(d=>d.tot>0);
+  let rows=getRowData().filter(d=>metric==='alloc_commit'?(d.tot>0||d.commit>0):d.tot>0);
   rows.sort((a,b)=>(barUseVal(b)??0)-(barUseVal(a)??0));
-  const toPlot=selected.size>0?rows.filter(d=>selected.has(d.c)):rows.slice(0,20);
+  const toPlot=rows.filter(d=>selected.has(d.c));
 
   const barColors={fin:'#6a9bd8',mil:'#3a5da8',hum:'#a8c4e8'};
+  const ALLOC_COMMIT_COLORS={alloc:'#1a3e8a',commit:'#6a9bd8'};
 
   const wrap=document.querySelector('.bar-chart-wrap');
   const controls=document.querySelector('#panel-bar .line-controls');
@@ -2727,6 +2749,12 @@ function renderBar(){
         const sw=xSc(s.v);
         if(sw>0.5){g.append('rect').attr('x',x).attr('y',0).attr('width',sw).attr('height',bH).attr('fill',s.col).attr('rx',1);x+=sw;}
       });
+    } else if(metric==='alloc_commit'){
+      let x=0;
+      [{v:d.tot||0,col:ALLOC_COMMIT_COLORS.alloc},{v:d.commit||0,col:ALLOC_COMMIT_COLORS.commit}].forEach(s=>{
+        const sw=xSc(s.v);
+        if(sw>0.5){g.append('rect').attr('x',x).attr('y',0).attr('width',sw).attr('height',bH).attr('fill',s.col).attr('rx',1);x+=sw;}
+      });
     } else {
       const barCol = barColors[metric] || '#3a5da8';
       g.append('rect').attr('x',0).attr('y',0).attr('width',Math.max(bw,1)).attr('height',bH).attr('fill',barCol).attr('rx',1);
@@ -2746,6 +2774,10 @@ function renderBar(){
   if(metric==='total'){
     legend.style.display='flex';
     legend.innerHTML=[{col:'#3a5da8',l:'Military'},{col:'#6a9bd8',l:'Financial'},{col:'#a8c4e8',l:'Humanitarian'}]
+      .map(it=>`<span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:${it.col};border-radius:2px;"></span>${it.l}</span>`).join('');
+  } else if(metric==='alloc_commit'){
+    legend.style.display='flex';
+    legend.innerHTML=[{col:ALLOC_COMMIT_COLORS.alloc,l:'Allocations'},{col:ALLOC_COMMIT_COLORS.commit,l:'Commitments'}]
       .map(it=>`<span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:${it.col};border-radius:2px;"></span>${it.l}</span>`).join('');
   } else {
     legend.style.display='none';
@@ -3402,7 +3434,7 @@ document.addEventListener('fullscreenchange',()=>{
 
     const leftPad = 2; // blank columns reserved to the left of the table
     const topPad  = 2; // blank rows reserved above the title
-    const dataColCount = 7; // Country, Date, Total, Financial, Military, Humanitarian, % of 2021 GDP
+    const dataColCount = 8; // Country, Date, Total, Financial, Military, Humanitarian, Commitments, % of 2021 GDP
     const firstCol = leftPad + 1;
     const lastCol  = leftPad + dataColCount;
     const logoCol  = lastCol + 1; // dedicated blank column so the logo never overlaps title text
@@ -3441,7 +3473,7 @@ document.addEventListener('fullscreenchange',()=>{
     ws.getRow(topPad + 5).height = 14;
     ws.addRow([]);
 
-    const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Country', 'Date', 'Total aid (€ bn)', 'Financial aid (€ bn)', 'Military aid (€ bn)', 'Humanitarian aid (€ bn)', '% of 2021 GDP']);
+    const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Country', 'Date', 'Total aid (€ bn)', 'Financial aid (€ bn)', 'Military aid (€ bn)', 'Humanitarian aid (€ bn)', 'Commitments (€ bn)', '% of 2021 GDP']);
     headerRow.eachCell({ includeEmpty: false }, cell => {
       cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3A6DC5' } };
@@ -3450,16 +3482,16 @@ document.addEventListener('fullscreenchange',()=>{
     headerRow.height = 18;
 
     rows.forEach(r => {
-      const dataRow = ws.addRow([...Array(leftPad).fill(null), r.c, new Date(r.y, r.m - 1, 1), r.tot, r.fin, r.mil, r.hum, gdpShareByCountry[r.c] || 0]);
+      const dataRow = ws.addRow([...Array(leftPad).fill(null), r.c, new Date(r.y, r.m - 1, 1), r.tot, r.fin, r.mil, r.hum, r.commit || 0, gdpShareByCountry[r.c] || 0]);
       dataRow.getCell(firstCol + 1).numFmt = 'mmm yyyy';
-      [2,3,4,5].forEach(i => dataRow.getCell(firstCol + 1 + i).numFmt = '0.0000');
-      dataRow.getCell(firstCol + 6).numFmt = '0.0000%';
+      [2,3,4,5,6].forEach(i => dataRow.getCell(firstCol + 1 + i).numFmt = '0.0000');
+      dataRow.getCell(firstCol + 7).numFmt = '0.0000%';
       dataRow.font = { name: 'Calibri', size: 10 };
     });
 
     ws.columns = [
       ...Array(leftPad).fill({ width: 3 }),
-      { width: 26 }, { width: 12 }, { width: 16 }, { width: 18 }, { width: 16 }, { width: 18 }, { width: 14 }, { width: 14 }
+      { width: 26 }, { width: 12 }, { width: 16 }, { width: 18 }, { width: 16 }, { width: 18 }, { width: 16 }, { width: 14 }
     ];
 
     try {
@@ -3518,7 +3550,7 @@ document.addEventListener('fullscreenchange',()=>{
       sheetName: 'Countries',
       title: 'Ukraine Support Tracker — All Countries',
       subtitle: `All Aid Types · ${rangeLabel} · ${countryCount} countr${countryCount===1?'y':'ies'}`,
-      note: 'Total, Financial, Military and Humanitarian aid are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
+      note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
       rows: countryRows,
       gdpShareByCountry
     });
@@ -3529,7 +3561,7 @@ document.addEventListener('fullscreenchange',()=>{
         sheetName: 'Aggregates',
         title: 'Ukraine Support Tracker — All Aggregates',
         subtitle: `All Aid Types · ${rangeLabel} · ${aggCount} aggregate${aggCount===1?'':'s'}`,
-        note: 'Total, Financial, Military and Humanitarian aid are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
+        note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
         rows: aggregateRows,
         gdpShareByCountry
       });
@@ -3566,7 +3598,7 @@ document.addEventListener('fullscreenchange',()=>{
       sheetName: 'Countries',
       title: 'Ukraine Support Tracker — Selected Countries',
       subtitle: `All Aid Types · ${rangeLabel} · ${countryCount} countr${countryCount===1?'y':'ies'}`,
-      note: 'Total, Financial, Military and Humanitarian aid are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
+      note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
       rows: countryRows,
       gdpShareByCountry
     });
@@ -3577,7 +3609,7 @@ document.addEventListener('fullscreenchange',()=>{
         sheetName: 'Aggregates',
         title: 'Ukraine Support Tracker — Selected Aggregates',
         subtitle: `All Aid Types · ${rangeLabel} · ${aggCount} aggregate${aggCount===1?'':'s'}`,
-        note: 'Total, Financial, Military and Humanitarian aid are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
+        note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
         rows: aggregateRows,
         gdpShareByCountry
       });
@@ -3624,6 +3656,10 @@ document.addEventListener('fullscreenchange',()=>{
     hum: {
       label: 'Humanitarian aid',
       desc: `<p><strong>Humanitarian aid</strong> includes bilateral allocations to Ukraine. Does not include private donations, support for refugees outside of Ukraine, and aid by international organizations. Financial allocations that are made explicitly for military and weapons purchases are counted as military aid.</p>`
+    },
+    alloc_commit: {
+      label: 'Allocations + Commitments',
+      desc: `<p><strong>Allocations</strong> are aid that has concretely been earmarked to a specific project, sector or recipient. <strong>Commitments</strong> are pledges of future aid that have not yet been allocated. Both are bilateral figures for Ukraine and do not include private donations, support for refugees outside of Ukraine, or aid by international organizations.</p>`
     }
   };
 
