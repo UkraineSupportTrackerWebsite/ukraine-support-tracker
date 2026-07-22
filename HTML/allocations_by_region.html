@@ -209,15 +209,15 @@
     .ring-popup-row {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
       gap: 0.6rem;
       padding: 0.18rem 0;
       font-size: 0.78rem;
     }
     .ring-popup-country {
       color: #333;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow-wrap: break-word;
+      min-width: 0;
     }
     .ring-popup-amount {
       color: var(--black);

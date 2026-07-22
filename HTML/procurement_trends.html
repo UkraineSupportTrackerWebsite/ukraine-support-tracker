@@ -299,9 +299,9 @@
       <div class="sort-custom-dropdown" id="cat-dropdown">
         <label class="sort-custom-option"><input type="checkbox" data-value="proc" checked><span class="cat-swatch" style="background:#ff6b00"></span>Procurement-based military aid</label>
         <label class="sort-custom-option"><input type="checkbox" data-value="stock" checked><span class="cat-swatch" style="background:#194aba"></span>Stockpile-based military aid</label>
-        <label class="sort-custom-option"><input type="checkbox" data-value="purl" checked><span class="cat-swatch" style="background:#e8a820"></span>NATO PURL</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="purl"><span class="cat-swatch" style="background:#e8a820"></span>NATO PURL</label>
         <label class="sort-custom-option"><input type="checkbox" data-value="unspec" checked><span class="cat-swatch" style="background:#b0aca0"></span>Unspecified</label>
-        <label class="sort-custom-option"><input type="checkbox" data-value="share" checked><span class="cat-swatch line-swatch" style="background:#a8332b"></span>Share of Stockpile-based military aid</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="share"><span class="cat-swatch line-swatch" style="background:#a8332b"></span>Share of Stockpile-based military aid</label>
       </div>
     </div>
   </div>
@@ -406,7 +406,19 @@ const LEGEND_ORDER = ['proc','stock','purl','unspec','share'];
 const LEGEND_ROWS = [ ['proc','stock','purl','unspec'], ['share'] ];
 function catInfo(key){ return CATS.find(c=>c.key===key); }
 
-let activeCats = new Set(['proc','stock','purl','unspec','share']);
+let activeCats = new Set(['proc','stock','unspec']);
+
+/* NATO PURL aid is drawn from US stockpiles (funded by allies under the
+   PURL mechanism), so whenever the NATO PURL category is deselected its
+   value is folded into Stockpile-based rather than dropped. */
+function getDisplayPeriods(){
+  const purlOn = activeCats.has('purl');
+  return PERIODS.map(d => {
+    const stock = purlOn ? d.stock : d.stock + d.purl;
+    const purl = purlOn ? d.purl : 0;
+    return { ...d, stock, purl, share: d.total > 0 ? stock / d.total : 0 };
+  });
+}
 
 /* ════════════════════════════════════
    CATEGORY SELECTOR
@@ -483,7 +495,8 @@ function hideTooltip(){ document.getElementById('chart-tooltip').style.display =
 function renderChart(){
   const wrap = document.querySelector('.line-chart-wrap');
   const W = wrap.clientWidth || 700, H = wrap.clientHeight || 220;
-  const pad = {t:20, r:42, b:35, l:38};
+  const shareOn = activeCats.has('share');
+  const pad = {t:20, r: shareOn ? 42 : 10, b: shareOn ? 35 : 50, l:38};
   const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
 
   const svg = d3.select('#line-svg').attr('viewBox', `0 0 ${W} ${H}`).attr('width', W).attr('height', H);
@@ -491,11 +504,11 @@ function renderChart(){
   const g = svg.append('g').attr('transform', `translate(${pad.l},${pad.t})`);
 
   const barKeys = CATS.filter(c=>c.type==='bar').map(c=>c.key).filter(k=>activeCats.has(k));
-  const shareOn = activeCats.has('share');
+  const PERIODS_DISPLAY = getDisplayPeriods();
 
-  const xSc = d3.scaleBand().domain(PERIODS.map((d,i)=>i)).range([0, iW]).paddingInner(0.35).paddingOuter(0.08);
+  const xSc = d3.scaleBand().domain(PERIODS_DISPLAY.map((d,i)=>i)).range([0, iW]).paddingInner(0.35).paddingOuter(0.08);
 
-  const maxTotal = Math.max(0.01, ...PERIODS.map(d => barKeys.reduce((s,k)=>s+d[k], 0)));
+  const maxTotal = Math.max(0.01, ...PERIODS_DISPLAY.map(d => barKeys.reduce((s,k)=>s+d[k], 0)));
   const ySc = d3.scaleLinear().domain([0, maxTotal * 1.12]).range([iH, 0]).nice();
   const yTickVals = ySc.ticks(5).length >= 2 ? ySc.ticks(5) : [0, ySc.domain()[1]];
 
@@ -549,7 +562,7 @@ function renderChart(){
 
   /* stacked bars */
   const barW = xSc.bandwidth();
-  PERIODS.forEach((d,i)=>{
+  PERIODS_DISPLAY.forEach((d,i)=>{
     let y0 = 0;
     barKeys.forEach(key=>{
       const v = d[key];
@@ -570,11 +583,11 @@ function renderChart(){
     const lineFn = d3.line()
       .x((d,i)=>xSc(i) + barW/2)
       .y(d=>yShareSc(d.share));
-    g.append('path').datum(PERIODS)
+    g.append('path').datum(PERIODS_DISPLAY)
       .attr('fill','none').attr('stroke', catInfo('share').color)
       .attr('stroke-width', 3.5).attr('stroke-dasharray', '5,3')
       .attr('d', lineFn);
-    g.selectAll(null).data(PERIODS).enter().append('circle')
+    g.selectAll(null).data(PERIODS_DISPLAY).enter().append('circle')
       .attr('cx',(d,i)=>xSc(i)+barW/2).attr('cy',d=>yShareSc(d.share))
       .attr('r', 2.6).attr('fill', catInfo('share').color)
       .on('mousemove', (event,d)=>{ showTooltip(event, d, barKeys, shareOn); })
@@ -597,10 +610,10 @@ function renderChart(){
 
   overlay.on('mousemove', (event) => {
     const [mx0] = d3.pointer(event);
-    const step = iW / PERIODS.length;
+    const step = iW / PERIODS_DISPLAY.length;
     let idx = Math.floor(mx0 / step);
-    idx = Math.max(0, Math.min(PERIODS.length - 1, idx));
-    const d = PERIODS[idx];
+    idx = Math.max(0, Math.min(PERIODS_DISPLAY.length - 1, idx));
+    const d = PERIODS_DISPLAY[idx];
     const xPos = xSc(idx) + barW/2;
     hoverLine.attr('x1', xPos).attr('x2', xPos).style('display', null);
     showTooltip(event, d, barKeys, shareOn);
