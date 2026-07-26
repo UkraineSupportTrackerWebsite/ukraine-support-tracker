@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ukraine Support Tracker – Gesamtzuweisungen an die Ukraine, nach Kategorie</title>
+  <style>
+    :root {
+      --font: Arial, sans-serif;
+      --font-serif: Arial, sans-serif;
+      --black: #1a1a1a;
+      --mid: #6b6b6b;
+      --light: #e8e8e8;
+      --border: #d0d0d0;
+      --bg: #f6f1e7;
+      --blue: #3a6dc5;
+      --blue-dark: #1a3e8a;
+      --mil: #3a5da8;
+      --fin: #6a9bd8;
+      --hum: #a8c4e8;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
+    /* Fluid: the card fills whatever box the embed gives it, in BOTH axes, so
+       no leftover margin can ever appear around it. */
+    html, body { height: 100%; }
+    a { color: inherit; text-decoration: none; }
+
+    .explorer-scale-container {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
+      background: #f6f1e7;
+    }
+
+    .explorer-wrap {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      border: 1px solid #ddd6c8;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #f6f1e7;
+      /* No drop shadow here: the card fills the whole iframe viewport, so the
+         shadow had nowhere to fall and only smudged grey into the rounded
+         corner cut-outs. The shadow now lives on the <iframe> in de_index.html. */
+      position: relative;
+    }
+
+    /* chart title area */
+    .chart-header {
+      padding: 0.45rem 1.1rem 0.6rem;
+      padding-right: 160px;
+      border-bottom: 1px solid #ddd6c8;
+      position: relative;
+      flex-shrink: 0;
+      background: #f6f1e7;
+      min-height: 76.5px;
+      box-sizing: border-box;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .chart-title {
+      font-family: var(--font-serif);
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.25;
+      color: #174abb;
+      margin-bottom: 0rem;
+    }
+    .kiel-logo {
+      position: absolute;
+      top: 50%; right: 17px;
+      transform: translateY(-50%);
+      line-height: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+    }
+    .kiel-logo img { height:40px; width: auto; display: block; }
+
+    /* controls bar */
+    .chart-controls {
+      flex-shrink: 0; padding: 0.55rem;
+      background: #f6f2e8;
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.72rem; color: var(--mid);
+    }
+
+    /* custom dropdown (shared visual language with data explorer) */
+    .sort-custom { position: relative; flex: none; }
+    .sort-custom-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
+      font-family: var(--font); font-size: 0.98rem;
+      /* Pinned rather than inherited: the UA stylesheet's `font` shorthand on
+         <button> resets line-height to `normal`, so without this the control
+         bar's height is whatever Arial's metrics happen to give (~1.15). That
+         height sets where the plot area starts, and de_allocations_by_region.html
+         reproduces it as a constant to line its '€ billion' label up with ours
+         — leave it declared so that stays a fact rather than a font accident. */
+      line-height: 1.15;
+      border: 1px solid var(--border); border-radius: 3px;
+      padding: 0.46rem 0.86rem;
+      background: #f6f1e7; color: var(--black);
+      cursor: pointer; white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-btn:hover { background: #ede8de; }
+    .sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
+    .sort-custom-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 3px); left: 0;
+      min-width: 190px;
+      background: #f6f1e7;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 100;
+      overflow: hidden;
+    }
+    .sort-custom-dropdown.open { display: block; }
+    .sort-custom-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.4rem 0.7rem;
+      font-family: var(--font); font-size: 0.82rem;
+      color: var(--black); cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-option:hover { background: #ede8de; }
+    .sort-custom-option input[type="checkbox"] {
+      appearance: none; -webkit-appearance: none;
+      width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
+      border: 1.5px solid #b0a898; border-radius: 2px;
+      background: #f6f1e7;
+      transition: border-color 0.1s;
+    }
+    .sort-custom-option input[type="checkbox"]:checked {
+      border-color: #ff6b00;
+      background: #ff6b00;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13'%3E%3Cpath d='M2.5 6.5l3 3 5-5' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+      background-size: 100% 100%;
+    }
+    .cat-swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    /* chart area */
+    .line-chart-wrap { flex: 1; padding: 0rem 0rem 0.4rem; overflow: hidden; min-height: 0; position: relative; }
+    #line-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+    .line-legend {
+      flex-shrink: 0; display: flex; flex-wrap: wrap;
+      gap: 0.3rem 1.1rem; padding: 0rem 1.1rem 0.55rem;
+      font-size: 0.82rem;
+    }
+    .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+    .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    /* tooltip */
+    #chart-tooltip {
+      position: fixed; pointer-events: none;
+      background: #f6f1e7; border: 1px solid #ccc; border-radius: 4px;
+      padding: 0.6rem 0.85rem; font-family: var(--font); font-size: 0.78rem;
+      line-height: 1.55; box-shadow: 0 4px 14px rgba(0,0,0,0.13);
+      min-width: 190px; display: none; z-index: 2000;
+    }
+    #chart-tooltip .tt-date { font-weight: 700; font-size: 0.86rem; margin-bottom: 0.35rem; padding-bottom: 0.4rem; border-bottom: 1px solid #ddd6c8; }
+    #chart-tooltip .tt-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+    #chart-tooltip .tt-row + .tt-row { margin-top: 0.15rem; }
+    #chart-tooltip .tt-key { display: flex; align-items: center; gap: 0.35rem; color: var(--mid); }
+    #chart-tooltip .tt-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    #chart-tooltip .tt-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    /* footer */
+    .chart-footer {
+      flex-shrink: 0;
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 0.5rem 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 1rem;
+      z-index: 20;
+    }
+    .footer-icons {
+      position: relative;
+      display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
+    }
+    .footer-icons::before {
+      content: '';
+      position: absolute;
+      top: -6px; bottom: -6px; right: -8px; left: -40px;
+      z-index: -1;
+      background: rgba(246,241,231,0.35);
+      backdrop-filter: blur(1.5px);
+      -webkit-backdrop-filter: blur(1.5px);
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
+      mask-image: linear-gradient(to right, transparent, #000 32px);
+    }
+    .footer-icon-btn {
+      width: 30px; height: 30px; border-radius: 3px;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    .footer-icon-btn:hover { background: var(--light); color: var(--black); }
+    .footer-icon-btn svg { width: 14px; height: 14px; }
+
+    /* share dropdown */
+    .share-wrap { position: relative; }
+    .share-dropdown {
+      display: none; position: absolute; right: 0; bottom: 110%;
+      background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
+    }
+    .share-dropdown.open { display: block; }
+    .share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
+    .share-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
+    }
+    .share-option:hover { background: #ede8de; }
+    .share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
+
+    /* copy toast */
+    #copy-toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: #222; color: #fff; font-size: 0.76rem;
+      padding: 0.45rem 1rem; border-radius: 4px;
+      opacity: 0; transition: opacity 0.25s; pointer-events: none;
+      z-index: 9999; font-family: var(--font);
+    }
+    #copy-toast.show { opacity: 1; }
+
+    /* ── Info Modal ── */
+    #info-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.32); z-index: 3000;
+    }
+    #info-overlay.open { display: block; }
+    #info-modal {
+      display: none; position: fixed; z-index: 3001;
+      left: 50%; top: 50%; transform: translate(-50%,-50%);
+      background: #f6f1e7; border: 1px solid #ddd6c8;
+      border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+      width: 500px; max-width: calc(100vw - 3rem);
+      max-height: calc(100vh - 4rem);
+      font-family: var(--font);
+    }
+    #info-modal.open { display: block; }
+    #info-modal-inner { padding: 1rem; max-height: calc(100vh - 4rem); overflow-y: auto; }
+    #info-modal-inner::-webkit-scrollbar { width: 5px; }
+    #info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    #info-close {
+      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    #info-close:hover { background: var(--light); color: var(--black); }
+    #info-close svg { width: 13px; height: 13px; }
+    #info-eyebrow {
+      font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #ff6b00;
+      line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
+    }
+    #info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
+    #info-body p { margin: 0 0 0.7rem; }
+    #info-body p:last-child { margin-bottom: 0; }
+    #info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    #info-body .info-tag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      color: #fff; background: #688fdc;
+      border: 1px solid #688fdc; border-radius: 3px;
+      padding: 0.2rem 0.55rem;
+    }
+    #info-body .info-source {
+      margin-top: 1rem; padding-top: 0.7rem;
+      border-top: 1px solid #ddd6c8;
+      font-size: 0.75rem; color: var(--mid); line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="explorer-scale-container" id="explorer-scale-container">
+<div class="explorer-wrap" id="explorer-wrap">
+
+  <div class="chart-header">
+    <div class="chart-title">Gesamtzuweisungen an die Ukraine, nach Kategorie</div>
+    <div class="kiel-logo">
+      <img src="../../assets/Kiel Institut Logo.svg" alt="Kiel Institut" />
+    </div>
+  </div>
+
+  <div class="chart-controls">
+    <div class="sort-custom" id="cat-custom">
+      <button class="sort-custom-btn" id="cat-btn" type="button">
+        <span id="cat-label">Gesamtzuweisungen</span>
+        <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <div class="sort-custom-dropdown" id="cat-dropdown">
+        <label class="sort-custom-option"><input type="checkbox" data-value="alloc" checked><span class="cat-swatch" style="background:#ff6b00"></span>Gesamtzuweisungen</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="milit" checked><span class="cat-swatch" style="background:#0d2c66"></span>Militärisch</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="financ" checked><span class="cat-swatch" style="background:#3a6dc5"></span>Finanziell</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="hum" checked><span class="cat-swatch" style="background:#8fc1e8"></span>Humanitär</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="line-chart-wrap">
+    <svg id="line-svg"></svg>
+  </div>
+  <div class="line-legend" id="line-legend"></div>
+
+  <div class="chart-footer">
+    <div class="footer-icons">
+      <button class="footer-icon-btn" id="info-btn" title="Über diese Daten">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><line x1="8" y1="7.1" x2="8" y2="11.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="4.85" r="0.95" fill="currentColor"/></svg>
+      </button>
+      <button class="footer-icon-btn" id="dl-btn" title="Daten herunterladen">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 4 3-4M2 13h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </button>
+      <div class="share-wrap">
+        <button class="footer-icon-btn" id="share-btn" title="Teilen">
+          <svg viewBox="0 0 16 16" fill="none"><circle cx="13" cy="3" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="3" cy="8" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="13" cy="13" r="1.6" stroke="currentColor" stroke-width="1.3"/><line x1="4.6" y1="7.2" x2="11.4" y2="4" stroke="currentColor" stroke-width="1.2"/><line x1="4.6" y1="8.8" x2="11.4" y2="12" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <div class="share-dropdown" id="share-dropdown">
+          <div class="share-dropdown-title">Teilen</div>
+          <div class="share-option" id="opt-image">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="7" r="1.2" stroke="currentColor" stroke-width="1.1"/><polyline points="1,11 5,7.5 8,10 11,7 15,11" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+            Grafik als Bild kopieren
+          </div>
+          <div class="share-option" id="opt-link">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5a3.5 3.5 0 0 0 4.95 0l2-2a3.5 3.5 0 0 0-4.95-4.95l-1 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M9.5 6.5a3.5 3.5 0 0 0-4.95 0l-2 2a3.5 3.5 0 0 0 4.95 4.95l1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Link zur Grafik kopieren
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="chart-tooltip"></div>
+  <div id="copy-toast">Link kopiert!</div>
+
+  <!-- ── Info Modal ── -->
+  <div id="info-overlay"></div>
+  <div id="info-modal">
+    <button id="info-close" title="Schließen">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div id="info-modal-inner">
+      <div id="info-eyebrow">Was diese Ansicht zeigt</div>
+      <div id="info-body"></div>
+    </div>
+  </div>
+
+</div><!-- /.explorer-wrap -->
+</div><!-- /.explorer-scale-container -->
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="../../assets/data-loader.js"></script>
+<script>
+/* ════════════════════════════════════
+   DATA
+   Loaded at runtime from data/total_allocations.csv (see ../../assets/data-loader.js).
+   Monthly (non-cumulative) sums across all donor countries + EU institutions.
+════════════════════════════════════ */
+let MONTHLY = [];
+let CUMUL = [];
+let RELEASE_LABEL = 'Ukraine Support Tracker, Release 30 (07/2026)';
+
+const MONTH_NAMES = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+function ymLabel(y,m){ return `${MONTH_NAMES[m-1]} ${y}`; }
+function ymKey(y,m){ return y*100+m; }
+
+function computeCumul(){
+  let cTot=0,cMil=0,cFin=0,cHum=0;
+  return MONTHLY.map(d=>{
+    cTot+=d.tot; cMil+=d.mil; cFin+=d.fin; cHum+=d.hum;
+    return {y:d.y,m:d.m,alloc:cTot,milit:cMil,financ:cFin,hum:cHum};
+  });
+}
+
+const CATS = [
+  {key:'alloc', label:'Gesamtzuweisungen', color:'#ff6b00'},
+  {key:'milit', label:'Militärisch',        color:'#0d2c66'},
+  {key:'financ',label:'Finanziell',         color:'#3a6dc5'},
+  {key:'hum',   label:'Humanitär',          color:'#8fc1e8'}
+];
+function catInfo(key){ return CATS.find(c=>c.key===key); }
+
+let activeCats = new Set(['alloc', 'milit', 'financ', 'hum']);
+
+/* ════════════════════════════════════
+   CATEGORY SELECTOR
+════════════════════════════════════ */
+function updateCatLabel(){
+  const label = document.getElementById('cat-label');
+  label.textContent = 'Kategorien auswählen';
+}
+
+(function(){
+  const btn = document.getElementById('cat-btn');
+  const dropdown = document.getElementById('cat-dropdown');
+  const boxes = dropdown.querySelectorAll('input[type="checkbox"]');
+  btn.addEventListener('click', e=>{ e.stopPropagation(); dropdown.classList.toggle('open'); });
+  document.addEventListener('click', ()=>dropdown.classList.remove('open'));
+  dropdown.addEventListener('click', e=>e.stopPropagation());
+  boxes.forEach(box=>box.addEventListener('change', ()=>{
+    const val = box.dataset.value;
+    if(box.checked) activeCats.add(val); else activeCats.delete(val);
+    if(activeCats.size===0){ box.checked=true; activeCats.add(val); }
+    updateCatLabel();
+    renderChart();
+  }));
+  updateCatLabel();
+})();
+
+/* ════════════════════════════════════
+   TOOLTIP
+════════════════════════════════════ */
+function showTooltip(event, d){
+  const tt = document.getElementById('chart-tooltip');
+  const rows = CATS.map(c => `
+    <div class="tt-row">
+      <span class="tt-key"><span class="tt-dot" style="background:${c.color}"></span>${c.label}</span>
+      <span class="tt-val">${d[c.key].toFixed(2)} Mrd. €</span>
+    </div>`).join('');
+  tt.innerHTML = `<div class="tt-date">${ymLabel(d.y,d.m)}</div>${rows}`;
+  tt.style.display = 'block';
+
+  /* #chart-tooltip is position:fixed but lives inside .explorer-wrap, which
+     is scaled via CSS transform (see setupResponsiveScale). A transform on an
+     ancestor makes it the containing block for fixed descendants, so the
+     tooltip's own left/top/width get scaled too. Counter-scale here so a
+     value of N px always lands N real screen px from the cursor. */
+  const wrap = document.getElementById('explorer-wrap');
+  const wrapRect = wrap.getBoundingClientRect();
+  const scale = wrapRect.width / wrap.offsetWidth || 1;
+  const invScale = 1 / scale;
+
+  const offset = 12;
+  const ttW = (tt.offsetWidth || 190) * scale;
+  const ttH = (tt.offsetHeight || 100) * scale;
+  let leftScreen = event.clientX + offset;
+  let topScreen = event.clientY + offset;
+  if(leftScreen + ttW > window.innerWidth - 10) leftScreen = event.clientX - ttW - offset;
+  if(topScreen + ttH > window.innerHeight - 10) topScreen = event.clientY - ttH - offset;
+
+  /* convert desired real-screen position into the wrap's transformed
+     coordinate space, since fixed positioning here resolves against wrap */
+  const left = (leftScreen - wrapRect.left) * invScale;
+  const top = (topScreen - wrapRect.top) * invScale;
+  tt.style.transform = '';
+  tt.style.left = left + 'px';
+  tt.style.top = top + 'px';
+}
+function hideTooltip(){ document.getElementById('chart-tooltip').style.display = 'none'; }
+
+/* ════════════════════════════════════
+   CHART
+════════════════════════════════════ */
+function renderChart(){
+  const wrap = document.querySelector('.line-chart-wrap');
+  const W = wrap.clientWidth || 700, H = wrap.clientHeight || 220;
+  const pad = {t:20, r:20, b:35, l:55};
+  const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
+
+  const svg = d3.select('#line-svg').attr('viewBox', `0 0 ${W} ${H}`).attr('width', W).attr('height', H);
+  svg.selectAll('*').remove();
+  const g = svg.append('g').attr('transform', `translate(${pad.l},${pad.t})`);
+
+  const xDomain = CUMUL.map(d => ymKey(d.y, d.m));
+  const cats = [...activeCats];
+  const allVals = CUMUL.flatMap(d => cats.map(k => d[k]));
+  const mx = Math.max(...allVals, 0.01);
+
+  const xSc = d3.scalePoint().domain(xDomain).range([0, iW]);
+  const ySc = d3.scaleLinear().domain([0, mx * 1.1]).range([iH, 0]).nice();
+  const yTickVals = ySc.ticks(5).length >= 2 ? ySc.ticks(5) : [0, ySc.domain()[1]];
+
+  g.append('g').selectAll('line').data(yTickVals).enter().append('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d=>ySc(d)).attr('y2', d=>ySc(d))
+    .attr('stroke', '#e0e0e0');
+
+  const janTicks = CUMUL.filter(d => d.m === 1).map(d => ymKey(d.y, d.m));
+  g.append('g').selectAll('line').data(janTicks).enter().append('line')
+    .attr('x1', d=>xSc(d)).attr('x2', d=>xSc(d)).attr('y1', 0).attr('y2', iH)
+    .attr('stroke', '#e0e0e0');
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(xSc).tickValues(janTicks).tickFormat(k=>{const d=CUMUL.find(z=>ymKey(z.y,z.m)===k); return d?d.y:'';}).tickSize(3).tickPadding(8))
+    .call(g=>g.select('.domain').attr('stroke','#ddd'))
+    .call(g=>g.selectAll('text').style('font-size','0.88rem').style('fill','#000'));
+
+  g.append('g')
+    .call(d3.axisLeft(ySc).tickValues(yTickVals).tickFormat(d=>d.toFixed(1)))
+    .call(g=>g.select('.domain').remove())
+    .call(g=>g.selectAll('line').attr('stroke','#eee'))
+    .call(g=>g.selectAll('text').style('font-size','0.88rem').style('fill','#000'));
+
+  svg.append('text')
+    .attr('text-anchor', 'end')
+    .attr('font-size', '0.9rem')
+    .attr('fill', '#000')
+    .attr('x', pad.l - 4)
+    .attr('y', pad.t - 8)
+    .text('Mrd. €');
+
+  const lineFn = d3.line().x(d=>xSc(ymKey(d.y,d.m))).y(d=>ySc(d.v));
+
+  cats.forEach(key=>{
+    const info = catInfo(key);
+    const pts = CUMUL.map(d=>({y:d.y, m:d.m, v:d[key]}));
+    g.append('path').datum(pts).attr('fill','none').attr('stroke',info.color).attr('stroke-width',2).attr('d',lineFn);
+    g.selectAll(null).data(pts).enter().append('circle')
+      .attr('cx',d=>xSc(ymKey(d.y,d.m))).attr('cy',d=>ySc(d.v)).attr('r',2.35).attr('fill',info.color);
+  });
+
+  /* single shared hover target across the whole chart width, snapping to nearest month */
+  const bisect = d3.bisector(k => k).left;
+  const overlay = g.append('rect')
+    .attr('x', 0).attr('y', 0).attr('width', iW).attr('height', iH)
+    .attr('fill', 'transparent')
+    .style('cursor', 'default');
+
+  const hoverLine = g.append('line')
+    .attr('y1', 0).attr('y2', iH)
+    .attr('stroke', '#999').attr('stroke-width', 1)
+    .attr('stroke-dasharray', '3,3')
+    .style('display', 'none');
+
+  const hoverLineY = g.append('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('stroke', '#999').attr('stroke-width', 1)
+    .attr('stroke-dasharray', '3,3')
+    .style('display', 'none');
+
+  const hoverDots = g.append('g').style('display', 'none');
+  cats.forEach(key=>{
+    const info = catInfo(key);
+    hoverDots.append('circle').attr('class', 'hd-'+key).attr('r', 3).attr('fill', info.color);
+  });
+
+  overlay.on('mousemove', (event) => {
+    const [mx0, my0] = d3.pointer(event);
+    const domainVals = xDomain;
+    const step = iW / (domainVals.length - 1 || 1);
+    let idx = Math.round(mx0 / step);
+    idx = Math.max(0, Math.min(domainVals.length - 1, idx));
+    const d = CUMUL[idx];
+    const xPos = xSc(ymKey(d.y, d.m));
+    let nearestKey = cats[0], best = Infinity;
+    cats.forEach(key=>{
+      const dist = Math.abs(ySc(d[key]) - my0);
+      if(dist < best){ best = dist; nearestKey = key; }
+    });
+    const yPos = ySc(d[nearestKey]);
+    hoverLine.attr('x1', xPos).attr('x2', xPos).style('display', null);
+    hoverLineY.attr('y1', yPos).attr('y2', yPos).style('display', null);
+    hoverDots.style('display', null);
+    cats.forEach(key=>{
+      hoverDots.select('.hd-'+key).attr('cx', xPos).attr('cy', ySc(d[key]));
+    });
+    showTooltip(event, d);
+  }).on('mouseleave', () => {
+    hoverLine.style('display', 'none');
+    hoverLineY.style('display', 'none');
+    hoverDots.style('display', 'none');
+    hideTooltip();
+  });
+
+  const legend = document.getElementById('line-legend');
+  legend.innerHTML = cats.map(key=>{
+    const info = catInfo(key);
+    return `<span class="legend-item"><span class="legend-dot" style="background:${info.color}"></span>${info.label}</span>`;
+  }).join('');
+}
+
+async function init(){
+  const rows = await USTData.fetchCSV('total_allocations.csv');
+  MONTHLY = rows.map(r => ({
+    y: r.year, m: r.month,
+    tot: r.total_allocations, mil: r.military, fin: r.financial, hum: r.humanitarian
+  })).sort((a,b) => ymKey(a.y,a.m) - ymKey(b.y,b.m));
+  CUMUL = computeCumul();
+  RELEASE_LABEL = await USTData.fetchReleaseLabel(RELEASE_LABEL);
+  renderChart();
+}
+init();
+/* resize re-render is handled by the ResizeObserver in setupResponsiveReflow */
+
+/* ════════════════════════════════════
+   DOWNLOAD (always all categories, all dates) —
+   formatted Excel workbook in the same style as the Data Explorer export
+════════════════════════════════════ */
+
+/* Rasterize the Kiel Institute SVG logo to a PNG data URL via canvas,
+   since ExcelJS can only embed PNG/JPEG images, not SVG. */
+let kielLogoPng = null;
+async function getKielLogoPng(){
+  if (kielLogoPng) return kielLogoPng;
+  const svgText = await fetch('../../assets/Kiel Institut Logo.svg').then(r => r.text());
+  const svgBlob = new Blob([svgText], {type:'image/svg+xml'});
+  const svgUrl  = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve; img.onerror = reject; img.src = svgUrl;
+  });
+  const scale = 3;
+  const canvas = document.createElement('canvas');
+  canvas.width  = img.naturalWidth  * scale;
+  canvas.height = img.naturalHeight * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  URL.revokeObjectURL(svgUrl);
+  kielLogoPng = {
+    dataUrl: canvas.toDataURL('image/png'),
+    width: img.naturalWidth, height: img.naturalHeight
+  };
+  return kielLogoPng;
+}
+
+document.getElementById('dl-btn').addEventListener('click', async () => {
+  const start = CUMUL[0], end = CUMUL[CUMUL.length - 1];
+  const rangeLabel = `${ymLabel(start.y,start.m)}–${ymLabel(end.y,end.m)}`;
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Kiel Institut für Weltwirtschaft — Ukraine Support Tracker';
+  wb.created = new Date();
+  const ws = wb.addWorksheet('Gesamtzuweisungen', { views: [{ showGridLines: false }] });
+
+  const leftPad = 2; // blank columns reserved to the left of the table
+  const topPad  = 2; // blank rows reserved above the title
+  const dataColCount = 5; // Date, Total, Military, Financial, Humanitarian
+  const firstCol = leftPad + 1;
+  const lastCol  = leftPad + dataColCount;
+  const logoCol  = lastCol + 1; // dedicated blank column so the logo never overlaps title text
+
+  for (let i = 0; i < topPad; i++) ws.addRow([]);
+
+  ws.mergeCells(topPad + 1, firstCol, topPad + 1, lastCol);
+  ws.mergeCells(topPad + 2, firstCol, topPad + 2, lastCol);
+  ws.mergeCells(topPad + 3, firstCol, topPad + 3, lastCol);
+  ws.mergeCells(topPad + 4, firstCol, topPad + 4, lastCol);
+  ws.mergeCells(topPad + 5, firstCol, topPad + 5, lastCol);
+
+  const titleCell = ws.getCell(topPad + 1, firstCol);
+  titleCell.value = 'Ukraine Support Tracker — Gesamtzuweisungen an die Ukraine, nach Kategorie';
+  titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFF6B00' } };
+  ws.getRow(topPad + 1).height = 26;
+
+  const releaseCell = ws.getCell(topPad + 2, firstCol);
+  releaseCell.value = RELEASE_LABEL;
+  releaseCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF555555' } };
+  ws.getRow(topPad + 2).height = 15;
+
+  const subtitleCell = ws.getCell(topPad + 3, firstCol);
+  subtitleCell.value = `Alle Kategorien · ${rangeLabel} · Alle Länder + EU-Institutionen`;
+  subtitleCell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF333333' } };
+  ws.getRow(topPad + 3).height = 18;
+
+  const noteCell = ws.getCell(topPad + 4, firstCol);
+  noteCell.value = 'Die Gesamtzuweisungen sowie die militärischen, finanziellen und humanitären Zuweisungen sind über alle Geberländer und die EU-Institutionen kumuliert, vom Beginn der Erfassung bis zum jeweils angezeigten Monat.';
+  noteCell.font = { name: 'Calibri', size: 8.5, italic: true, color: { argb: 'FF888888' } };
+  ws.getRow(topPad + 4).height = 14;
+
+  const sourceCell = ws.getCell(topPad + 5, firstCol);
+  sourceCell.value = 'Datenquelle: Kiel Institut für Weltwirtschaft — Ukraine Support Tracker (kiel-institute.de/ukraine)';
+  sourceCell.font = { name: 'Calibri', size: 8.5, italic: true, color: { argb: 'FF888888' } };
+  ws.getRow(topPad + 5).height = 14;
+  ws.addRow([]);
+
+  const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Datum', 'Gesamtzuweisungen (Mrd. €)', 'Militärisch (Mrd. €)', 'Finanziell (Mrd. €)', 'Humanitär (Mrd. €)']);
+  headerRow.eachCell({ includeEmpty: false }, cell => {
+    cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3A6DC5' } };
+    cell.alignment = { vertical: 'middle' };
+  });
+  headerRow.height = 18;
+
+  CUMUL.forEach(d => {
+    const dataRow = ws.addRow([...Array(leftPad).fill(null), new Date(d.y, d.m - 1, 1), d.alloc, d.milit, d.financ, d.hum]);
+    dataRow.getCell(firstCol).numFmt = 'mmm yyyy';
+    [1,2,3,4].forEach(i => dataRow.getCell(firstCol + i).numFmt = '0.0000');
+    dataRow.font = { name: 'Calibri', size: 10 };
+  });
+
+  ws.columns = [
+    ...Array(leftPad).fill({ width: 3 }),
+    { width: 14 }, { width: 22 }, { width: 16 }, { width: 16 }, { width: 18 }
+  ];
+
+  try {
+    const logo = await getKielLogoPng();
+    const imgId = wb.addImage({ base64: logo.dataUrl, extension: 'png' });
+    const logoDisplayHeight = 64;
+    const logoDisplayWidth  = logoDisplayHeight * (logo.width / logo.height);
+    ws.addImage(imgId, {
+      tl: { col: logoCol - 1 + 0.05, row: topPad + 0.05 },
+      ext: { width: logoDisplayWidth, height: logoDisplayHeight },
+      editAs: 'absolute'
+    });
+  } catch (e) {
+    console.warn('Could not embed Kiel Institute logo in export:', e);
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'Ukraine Support Tracker, Gesamtzuweisungen an die Ukraine, nach Kategorie.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* ════════════════════════════════════
+   SHARE (image / link)
+════════════════════════════════════ */
+(function(){
+  const shareBtn = document.getElementById('share-btn');
+  const shareDropdown = document.getElementById('share-dropdown');
+  shareBtn.addEventListener('click', e=>{ e.stopPropagation(); shareDropdown.classList.toggle('open'); });
+  document.addEventListener('click', ()=>shareDropdown.classList.remove('open'));
+  shareDropdown.addEventListener('click', e=>e.stopPropagation());
+})();
+
+function showCopyToast(msg){
+  const toast = document.getElementById('copy-toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'), 1800);
+}
+
+document.getElementById('opt-link').addEventListener('click', () => {
+  navigator.clipboard.writeText(window.location.href).catch(()=>{});
+  document.getElementById('share-dropdown').classList.remove('open');
+  showCopyToast('Link kopiert!');
+});
+
+/* CSS gives shapes their stroke/fill via stylesheet rules that won't travel with a
+   standalone serialized SVG, so bake the relevant computed styles into inline
+   style attributes on a 1:1 cloned tree before serializing. */
+function inlineComputedStyles(srcEl, destEl){
+  const props = ['fill','stroke','stroke-width','stroke-dasharray','opacity','fill-opacity','stroke-opacity'];
+  const cs = getComputedStyle(srcEl);
+  let style = '';
+  props.forEach(p=>{ const v = cs.getPropertyValue(p); if(v) style += `${p}:${v};`; });
+  if(style) destEl.setAttribute('style', style + (destEl.getAttribute('style')||''));
+  const srcChildren = srcEl.children;
+  const destChildren = destEl.children;
+  for(let i=0;i<srcChildren.length;i++){
+    inlineComputedStyles(srcChildren[i], destChildren[i]);
+  }
+}
+
+function svgToPngImage(svgEl, w, h){
+  return new Promise((resolve,reject)=>{
+    w = Math.max(1, Math.round(w));
+    h = Math.max(1, Math.round(h));
+    const clone = svgEl.cloneNode(true);
+    inlineComputedStyles(svgEl, clone);
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    if(!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const xml = new XMLSerializer().serializeToString(clone);
+    const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w * 2; canvas.height = h * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2,2);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      const out = new Image();
+      out.onload = () => resolve({img: out, w, h});
+      out.onerror = reject;
+      out.src = canvas.toDataURL('image/png');
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   IMAGE-EXPORT STYLE SETTINGS — tweak these to change the exported PNG.
+
+   All sizes are px of the export layout (the card is laid out `width` px
+   wide, then rendered at width × pixelRatio actual image pixels).
+
+   - width          : exported image width. The height follows the chart's
+                      on-screen aspect ratio automatically.
+   - pixelRatio     : resolution multiplier for the final PNG (2 = retina).
+                      Changes sharpness/file size, not layout proportions.
+   - titleFontSize  : the blue title in the header.
+   - logoWidth      : Kiel logo width in the top-right corner.
+   - headerPadding  : CSS padding of the header block. The 2nd value (right
+                      padding, 300px) must stay wide enough that the title
+                      doesn't run underneath the logo.
+   - legendFontSize / legendDotSize : the series legend under the chart.
+   - footerFontSize / footerPadding : the "Data source: …" note at the bottom.
+   ═════════════════════════════════════════════════════════════════════ */
+const EXPORT_STYLE = {
+  width:          1600,
+  pixelRatio:     2,
+  titleFontSize:  52,
+  logoWidth:      260,
+  headerPadding:  '20px 300px 16px 22px',
+  legendFontSize: 32,
+  legendDotSize:  16,
+  footerFontSize: 30,
+  footerPadding:  '20px 22px',
+};
+
+async function copyChartAsImage(){
+  const panel = document.getElementById('explorer-wrap');
+  if(!panel) return;
+
+  const EXPORT_W = EXPORT_STYLE.width;
+
+  const card = document.createElement('div');
+  card.style.cssText = `position:fixed;left:-99999px;top:0;width:${EXPORT_W}px;background:#f6f1e7;font-family:${getComputedStyle(document.body).fontFamily};color:#1a1a1a;`;
+
+  const header = document.createElement('div');
+  header.style.cssText = `position:relative;padding:${EXPORT_STYLE.headerPadding};min-height:150px;box-sizing:border-box;display:flex;align-items:center;`;
+  header.innerHTML = `
+    <div style="font-size:${EXPORT_STYLE.titleFontSize}px;font-weight:700;line-height:1.25;color:#174abb;">${document.querySelector('.chart-title').textContent}</div>
+  `;
+  const logoWrap = document.createElement('div');
+  logoWrap.style.cssText = `position:absolute;top:20px;right:22px;width:${EXPORT_STYLE.logoWidth}px;display:flex;align-items:center;`;
+  const logoImg = document.querySelector('.kiel-logo img');
+  const logoClone = logoImg.cloneNode(true);
+  logoClone.style.cssText = 'width:100%;height:auto;display:block;';
+  logoWrap.appendChild(logoClone);
+  header.appendChild(logoWrap);
+
+  /* The line chart's SVG is CSS width:100%/height:100% with a viewBox, so it
+     scales cleanly with its container — rasterize it directly at the export
+     resolution (like Data Explorer's line/globe export) rather than laying the
+     clone out at live size and blowing it up with an ancestor CSS transform.
+     html2canvas doesn't reliably rasterize a swapped-in <img> that sits under a
+     transform:scale() ancestor, which is what caused the export to render blank. */
+  const panelClone = panel.cloneNode(true);
+  panelClone.querySelectorAll('.chart-header, .chart-controls, .footer-icons').forEach(el=>el.remove());
+  panelClone.style.border = 'none';
+  panelClone.style.borderRadius = '0';
+  panelClone.style.boxShadow = 'none';
+  panelClone.style.transform = 'none';
+  panelClone.style.width = EXPORT_W + 'px';
+  /* .explorer-wrap has a fixed height:496px in its own stylesheet rule for the
+     live on-screen card; that still applies to the clone via the shared class
+     and would clip the export to that height regardless of content. Let it
+     size to its (now taller/shorter) children instead. */
+  panelClone.style.height = 'auto';
+  panelClone.style.overflow = 'visible';
+
+  const panelRect = panel.getBoundingClientRect();
+  const scale = EXPORT_W / panelRect.width;
+
+  /* .line-chart-wrap is flex:1, filling whatever height is left over after its
+     flex siblings. Removing .chart-header/.chart-controls above frees up that
+     space, which flex:1 would hand straight to the chart wrap instead — pin it
+     to its live height (scaled) so it keeps the same proportions as on screen. */
+  const liveChartWrap = panel.querySelector('.line-chart-wrap');
+  const clonedChartWrap = panelClone.querySelector('.line-chart-wrap');
+  const chartWrapRect = liveChartWrap.getBoundingClientRect();
+  clonedChartWrap.style.flex = 'none';
+  clonedChartWrap.style.height = Math.round(chartWrapRect.height * scale) + 'px';
+
+  const panelWrap = document.createElement('div');
+  panelWrap.style.cssText = `position:relative;width:${EXPORT_W}px;overflow:visible;background:#f6f1e7;`;
+  panelWrap.appendChild(panelClone);
+
+  const legend = panelClone.querySelector('#line-legend');
+  if(legend){
+    legend.style.fontSize = EXPORT_STYLE.legendFontSize + 'px';
+    legend.style.gap = '0.6rem 2rem';
+    legend.style.padding = '10px 22px 20px';
+    legend.querySelectorAll('.legend-dot').forEach(el=>{
+      el.style.width = EXPORT_STYLE.legendDotSize + 'px';
+      el.style.height = EXPORT_STYLE.legendDotSize + 'px';
+    });
+    legend.querySelectorAll('.legend-item').forEach(el=>{ el.style.gap = '0.5rem'; });
+  }
+
+  const footer = document.createElement('div');
+  footer.style.cssText = `padding:${EXPORT_STYLE.footerPadding};font-size:${EXPORT_STYLE.footerFontSize}px;line-height:1.5;border-top:1px solid #ddd6c8;`;
+  footer.innerHTML = `<strong>Datenquelle:</strong> Kiel Institut für Weltwirtschaft – ${RELEASE_LABEL}`;
+
+  card.appendChild(header);
+  card.appendChild(panelWrap);
+  card.appendChild(footer);
+  document.body.appendChild(card);
+
+  try{
+    const clonedSvgs = panelWrap.querySelectorAll('svg');
+    for(const svg of clonedSvgs){
+      const liveSvg = svg.id ? panel.querySelector('#'+CSS.escape(svg.id)) : null;
+      if(!liveSvg) continue;
+      const rect = liveSvg.getBoundingClientRect();
+      if(rect.width < 1 || rect.height < 1) continue;
+      try{
+        const {img} = await svgToPngImage(liveSvg, rect.width*scale, rect.height*scale);
+        img.style.cssText = svg.getAttribute('style') || '';
+        img.style.width = Math.round(rect.width*scale) + 'px';
+        img.style.height = Math.round(rect.height*scale) + 'px';
+        img.style.display = 'block';
+        if(svg.getAttribute('class')) img.className = svg.getAttribute('class');
+        svg.replaceWith(img);
+      }catch(e){ /* leave the original svg if rasterizing fails */ }
+    }
+
+    const canvas = await html2canvas(card, {backgroundColor:'#f6f1e7', scale:EXPORT_STYLE.pixelRatio, useCORS:true});
+    await new Promise((resolve,reject)=>{
+      canvas.toBlob(async blob=>{
+        if(!blob){ reject(new Error('toBlob failed')); return; }
+        try{
+          await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+          resolve();
+        }catch(err){
+          try{
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'ust_gesamtzuweisungen.png'; a.click();
+            URL.revokeObjectURL(url);
+            resolve();
+          }catch(e2){ reject(e2); }
+        }
+      }, 'image/png');
+    });
+    showCopyToast('Bild der Grafik kopiert!');
+  }catch(err){
+    showCopyToast('Bild konnte nicht kopiert werden');
+  }finally{
+    document.body.removeChild(card);
+  }
+}
+
+document.getElementById('opt-image').addEventListener('click', () => {
+  document.getElementById('share-dropdown').classList.remove('open');
+  document.getElementById('cat-dropdown').classList.remove('open');
+  document.getElementById('info-overlay').classList.remove('open');
+  document.getElementById('info-modal').classList.remove('open');
+  hideTooltip();
+  copyChartAsImage();
+});
+
+/* ════════════════════════════════════
+   INFO MODAL
+════════════════════════════════════ */
+(function(){
+  const overlay = document.getElementById('info-overlay');
+  const modal = document.getElementById('info-modal');
+  const bodyEl = document.getElementById('info-body');
+
+  function openInfoModal(){
+    const start = CUMUL[0], end = CUMUL[CUMUL.length-1];
+    const rangeLabel = `${ymLabel(start.y,start.m)}–${ymLabel(end.y,end.m)}`;
+    const catLabels = [...activeCats].map(k=>catInfo(k).label);
+
+    let html = '';
+    html += `<div class="info-tag-row">
+      ${catLabels.map(l=>`<span class="info-tag">${l}</span>`).join('')}
+      <span class="info-tag">${rangeLabel}</span>
+    </div>`;
+    html += `<p><strong>Gesamtzuweisungen</strong> umfasst die kumulierten bilateralen staatlichen Hilfszuweisungen an die Ukraine aus allen vom Ukraine Support Tracker erfassten Geberländern sowie die Zuweisungen der EU-Institutionen (Kommission und Rat, MFA- und EIB-Mittel). Nicht enthalten sind private Spenden, Unterstützung für Geflüchtete außerhalb der Ukraine sowie Hilfen internationaler Organisationen. Finanzielle Zuweisungen, die ausdrücklich für militärische Zwecke und Waffenkäufe bestimmt sind, werden als militärische Hilfe gezählt.</p>`;
+    html += `<p>Die Werte sind vom Beginn der Erfassung (Januar 2022) bis zum jeweils angezeigten Monat kumuliert und in jeweiligen Euro angegeben.</p>`;
+    html += `<div class="info-source"><strong>Datenquelle:</strong> Kiel Institut für Weltwirtschaft – ${RELEASE_LABEL}</div>`;
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('open');
+    modal.classList.add('open');
+  }
+  function closeInfoModal(){
+    overlay.classList.remove('open');
+    modal.classList.remove('open');
+  }
+  document.getElementById('info-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    if(modal.classList.contains('open')) closeInfoModal(); else openInfoModal();
+  });
+  overlay.addEventListener('click', closeInfoModal);
+  document.getElementById('info-close').addEventListener('click', closeInfoModal);
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && modal.classList.contains('open')) closeInfoModal();
+  });
+})();
+
+/* ════════════════════════════════════
+   RESPONSIVE REFLOW
+
+   The card fills 100% of the iframe in both axes (see .explorer-wrap), so it
+   can never leave a margin no matter what size the embed gives it. Two jobs
+   remain:
+
+     1. Re-render the chart whenever our box changes size, so the SVG is drawn
+        at real pixel dimensions rather than being zoomed. A ResizeObserver on
+        the wrap catches every case — window resize, iframe resize, and a
+        parent that resizes us in response to (2).
+
+     2. Suggest a height to the parent. This is only a HINT for embedders who
+        opt in to auto-sizing; the page renders correctly at whatever height
+        it is actually given, so an embedder may equally ignore it and pick a
+        fixed height. The hint keeps the card's original 565:496 proportions,
+        clamped so it never becomes a sliver or absurdly tall.
+════════════════════════════════════ */
+(function setupResponsiveReflow(){
+  const ASPECT = 496 / 565;      // original card proportions
+  const MIN_H = 360, MAX_H = 900;
+  const wrap = document.getElementById('explorer-wrap');
+  if(!wrap) return;
+
+  let lastSent = 0;
+  function suggestHeight(){
+    if(window.parent === window) return;
+    const w = wrap.clientWidth;
+    if(!w) return;
+    const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)));
+    if(h === lastSent) return;        // avoid a resize<->postMessage feedback loop
+    lastSent = h;
+    window.parent.postMessage({type:'ust-total-allocations-height', height:h}, '*');
+  }
+
+  function onResize(){
+    if(typeof renderChart === 'function') renderChart();
+    suggestHeight();
+  }
+
+  /* A ResizeObserver on the wrap already covers window resize (the wrap is
+     100% of the page), so only fall back to a window listener without it. */
+  if(typeof ResizeObserver !== 'undefined'){
+    new ResizeObserver(onResize).observe(wrap);
+  } else {
+    window.addEventListener('resize', onResize);
+  }
+  suggestHeight();
+})();
+</script>
+</body>
+</html>

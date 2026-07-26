@@ -1,0 +1,1930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ukraine Support Tracker – Total Allocations to Ukraine, by Donor</title>
+  <style>
+    :root {
+      --font: Arial, sans-serif;
+      --font-serif: Arial, sans-serif;
+      --black: #1a1a1a;
+      --mid: #6b6b6b;
+      --border: #d0d0d0;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
+
+    /* Fluid: the card fills whatever box the embed gives it, in BOTH axes, so
+       no leftover margin can ever appear around it. */
+    html, body { height: 100%; }
+
+    .explorer-scale-container {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
+      background: #f6f1e7;
+    }
+
+    .explorer-wrap {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      border: 1px solid #ddd6c8;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #f6f1e7;
+      /* No drop shadow here: the card fills the whole iframe viewport, so the
+         shadow had nowhere to fall and only smudged grey into the rounded
+         corner cut-outs. The shadow now lives on the <iframe> in en_index.html. */
+      position: relative;
+    }
+
+    .chart-header {
+      padding: 0.9rem 1.1rem 0.7rem;
+      padding-right: 185px;
+      border-bottom: 1px solid #ddd6c8;
+      position: relative;
+      flex-shrink: 0;
+      background: #f6f1e7;
+      min-height: 76.5px;
+      box-sizing: border-box;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .chart-title {
+      font-family: var(--font-serif);
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.25;
+      color: #174abb;
+      margin-bottom: 0rem;
+    }
+    .kiel-logo {
+      position: absolute;
+      top: 50%; right: 17px;
+      transform: translateY(-50%);
+      line-height: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+    }
+    .kiel-logo img { height: 40px; width: auto; display: block; }
+
+    /* ── CONTROLS BAR ────────────────────────────────────────────
+       Identical metrics to the region / category selectors (0.98rem button at
+       line-height 1.15 inside 0.55rem padding = 46.06px tall), so this card
+       stacks exactly like the two above it and the plots line up across the
+       grid. line-height is pinned here rather than left to the UA sheet, which
+       resets buttons to `normal` and would tie the height to Arial's metrics.
+    ───────────────────────────────────────────────────────────── */
+    .chart-controls {
+      flex-shrink: 0; padding: 0.55rem;
+      background: #f6f2e8;
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.72rem; color: var(--mid);
+    }
+
+    /* custom dropdown (shared visual language with data explorer) */
+    .sort-custom { position: relative; flex: none; }
+    .sort-custom-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
+      font-family: var(--font); font-size: 0.98rem; line-height: 1.15;
+      border: 1px solid var(--border); border-radius: 3px;
+      padding: 0.46rem 0.86rem;
+      background: #f6f1e7; color: var(--black);
+      cursor: pointer; white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-btn:hover { background: #ede8de; }
+    .sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
+    .sort-custom-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 3px); left: 0;
+      min-width: 230px;
+      background: #f6f1e7;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 100;
+      overflow: hidden;
+    }
+    .sort-custom-dropdown.open { display: block; }
+
+    /* The donor list is the Data Explorer's full option set — five aggregates
+       plus every donor country — so unlike the region selector it has to
+       scroll, and it gets the explorer's section headings. */
+    .sort-custom-list {
+      max-height: 244px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+    .sort-custom-list::-webkit-scrollbar { width: 5px; }
+    .sort-custom-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    .sort-custom-group {
+      padding: 0.45rem 0.7rem 0.2rem;
+      font-size: 0.66rem; font-weight: 700;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--mid);
+    }
+    .sort-custom-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.28rem 0.7rem;
+      font-family: var(--font); font-size: 0.82rem;
+      color: var(--black); cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-option:hover { background: #ede8de; }
+    .sort-custom-option input[type="checkbox"] {
+      appearance: none; -webkit-appearance: none;
+      width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
+      border: 1.5px solid #b0a898; border-radius: 2px;
+      background: #f6f1e7;
+      transition: border-color 0.1s;
+    }
+    .sort-custom-option input[type="checkbox"]:checked {
+      border-color: #ff6b00;
+      background: #ff6b00;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13'%3E%3Cpath d='M2.5 6.5l3 3 5-5' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+      background-size: 100% 100%;
+    }
+    .cat-swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .sort-custom-actions {
+      display: flex; justify-content: space-between; gap: 0.9rem;
+      padding: 0.45rem 0.7rem;
+      border-top: 1px solid var(--border);
+    }
+    .sort-custom-action {
+      background: none; border: none; padding: 0;
+      font-family: var(--font); font-size: 0.76rem; font-weight: 600;
+      color: var(--mid); cursor: pointer;
+    }
+    .sort-custom-action:hover { color: var(--black); text-decoration: underline; }
+
+    /* ── BAR CHART BODY ──────────────────────────────────────────
+       Two SVGs, not one: the value axis is a fixed strip at the top and the
+       bars live in a scroller underneath. With every option selected the
+       ranking is 46 bars long — far more than fits at a legible row height —
+       so the plot grows past the card and scrolls, while the axis it is read
+       against stays put. When the selection does fit, the scroller never
+       scrolls and the card looks exactly like a static chart.
+    ─────────────────────────────────────────────────────────────── */
+    .bar-body {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      padding-left: 0.4rem;
+    }
+    #axis-svg { width: 100%; flex-shrink: 0; display: block; overflow: visible; }
+    #bar-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+    }
+    #bar-scroll::-webkit-scrollbar { width: 6px; }
+    #bar-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    #bar-svg { width: 100%; display: block; overflow: visible; }
+
+    /* Bars carry this card's brand color — orange for total aid — with a
+       lighter tint for the aggregates. Every bar is directly labeled and all
+       chart text stays in ink colors rather than wearing its series color. */
+    .bar-rect { transition: opacity 0.12s; }
+    /* clickable: a click pins the popup so its rows can be read at leisure */
+    .bar-hit { cursor: pointer; }
+
+    .empty-note {
+      position: absolute; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      font-size: 0.9rem; color: var(--mid);
+      pointer-events: none;
+    }
+    .empty-note.show { display: flex; }
+
+    /* ── breakdown popup (follows cursor over the bars, until pinned) ── */
+    #bar-hover-popup {
+      display: none;
+      position: absolute;
+      z-index: 250;
+      background: #f6f1e7;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+      width: 215px;
+      padding: 0.55rem 0;
+      font-family: var(--font);
+      /* While trailing the cursor the card must not eat pointer events, or a
+         fast sweep lands the cursor on the card and stalls the tracking. It
+         only becomes interactive once pinned. */
+      pointer-events: none;
+    }
+    #bar-hover-popup.show { display: block; }
+    #bar-hover-popup.pinned {
+      pointer-events: auto;
+      border-color: #b8b0a0;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.24);
+    }
+    .bar-popup-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.15rem 0.5rem;
+      padding: 0 0.7rem 0.4rem;
+      border-bottom: 1px solid #eee6d8;
+      margin-bottom: 0.3rem;
+    }
+    .bar-popup-title {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: var(--black);
+      flex: 1 1 100px;
+    }
+    .bar-popup-total {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: #ff6b00;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .bar-popup-list {
+      max-height: 175px;
+      overflow-y: auto;
+      padding: 0 0.7rem;
+    }
+    .bar-popup-list::-webkit-scrollbar { width: 5px; }
+    .bar-popup-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    .bar-popup-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.18rem 0;
+      font-size: 0.78rem;
+    }
+    /* the row for the aid type this card actually plots */
+    .bar-popup-row.is-metric .bar-popup-country,
+    .bar-popup-row.is-metric .bar-popup-amount { font-weight: 700; }
+    .bar-popup-row.is-rule {
+      border-top: 1px solid #eee6d8;
+      margin-top: 0.25rem;
+      padding-top: 0.3rem;
+    }
+    .bar-popup-country {
+      color: #333;
+      overflow-wrap: break-word;
+      min-width: 0;
+    }
+    .bar-popup-amount {
+      color: var(--black);
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .bar-popup-note {
+      padding: 0.35rem 0.7rem 0;
+      font-size: 0.7rem; line-height: 1.35;
+      color: var(--mid);
+    }
+
+    .chart-footer {
+      flex-shrink: 0;
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 0.5rem 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 1rem;
+      z-index: 20;
+    }
+    .footer-icons {
+      position: relative;
+      display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
+    }
+    .footer-icons::before {
+      content: '';
+      position: absolute;
+      top: -6px; bottom: -6px; right: -8px; left: -40px;
+      z-index: -1;
+      background: rgba(246,241,231,0.35);
+      backdrop-filter: blur(1.5px);
+      -webkit-backdrop-filter: blur(1.5px);
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
+      mask-image: linear-gradient(to right, transparent, #000 32px);
+    }
+    /* ── series key ──────────────────────────────────────────────
+       Same component as the Data Explorer's bar-view legend (#bar-legend
+       there): a translucent cream chip carrying a 12px swatch per series, in
+       muted ink rather than in the series colors. It rides in the footer to the
+       left of the icon cluster, so the two float over the plot as one group and
+       the popup's blockedRects() can keep clear of both.
+    ───────────────────────────────────────────────────────────── */
+    .bar-legend {
+      display: none;                 /* set to flex by renderChart when a bar is split */
+      align-items: center; gap: 14px;
+      flex-shrink: 0;
+      background: rgba(246,242,232,0.95);
+      border-radius: 3px;
+      padding: 6px 11px;
+      font-size: 0.86rem; color: #888;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .bar-legend .legend-item { display: flex; align-items: center; gap: 6px; }
+    .bar-legend .legend-swatch {
+      display: inline-block; width: 12px; height: 12px;
+      border-radius: 2px; flex-shrink: 0;
+    }
+
+    .footer-icon-btn {
+      width: 30px; height: 30px; border-radius: 3px;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    .footer-icon-btn:hover { background: #ede8de; color: var(--black); }
+    .footer-icon-btn svg { width: 14px; height: 14px; }
+
+    /* share dropdown */
+    .share-wrap { position: relative; }
+    .share-dropdown {
+      display: none; position: absolute; right: 0; bottom: 110%;
+      background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
+    }
+    .share-dropdown.open { display: block; }
+    .share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
+    .share-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
+    }
+    .share-option:hover { background: #ede8de; }
+    .share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
+
+    /* copy toast */
+    #copy-toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: #222; color: #fff; font-size: 0.76rem;
+      padding: 0.45rem 1rem; border-radius: 4px;
+      opacity: 0; transition: opacity 0.25s; pointer-events: none;
+      z-index: 9999; font-family: var(--font);
+    }
+    #copy-toast.show { opacity: 1; }
+
+    /* ── Info Modal ── */
+    #info-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.32); z-index: 3000;
+    }
+    #info-overlay.open { display: block; }
+    #info-modal {
+      display: none; position: fixed; z-index: 3001;
+      left: 50%; top: 50%; transform: translate(-50%,-50%);
+      background: #f6f1e7; border: 1px solid #ddd6c8;
+      border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+      width: 500px; max-width: calc(100vw - 3rem);
+      max-height: calc(100vh - 4rem);
+      font-family: var(--font);
+    }
+    #info-modal.open { display: block; }
+    #info-modal-inner { padding: 1rem; max-height: calc(100vh - 4rem); overflow-y: auto; }
+    #info-modal-inner::-webkit-scrollbar { width: 5px; }
+    #info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    #info-close {
+      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    #info-close:hover { background: #ede8de; color: var(--black); }
+    #info-close svg { width: 13px; height: 13px; }
+    #info-eyebrow {
+      font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #ff6b00;
+      line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
+    }
+    #info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
+    #info-body p { margin: 0 0 0.7rem; }
+    #info-body p:last-child { margin-bottom: 0; }
+    #info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    #info-body .info-tag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      color: #fff; background: #688fdc;
+      border: 1px solid #688fdc; border-radius: 3px;
+      padding: 0.2rem 0.55rem;
+    }
+    #info-body .info-def {
+      margin: 0 0 0.7rem;
+      padding-left: 0.7rem;
+      border-left: 2px solid #ddd6c8;
+    }
+    #info-body .info-source {
+      margin-top: 1rem; padding-top: 0.7rem;
+      border-top: 1px solid #ddd6c8;
+      font-size: 0.75rem; color: var(--mid); line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="explorer-scale-container" id="explorer-scale-container">
+<div class="explorer-wrap" id="explorer-wrap">
+
+  <div class="chart-header">
+    <div class="chart-title" id="chart-title">Total Allocations to Ukraine, by Donor</div>
+    <div class="kiel-logo">
+      <img src="../../assets/Kiel Institut Logo.svg" alt="Kiel Institut" />
+    </div>
+  </div>
+
+  <div class="chart-controls">
+    <div class="sort-custom" id="donor-custom">
+      <button class="sort-custom-btn" id="donor-btn" type="button">
+        <span id="donor-label">Select Donors</span>
+        <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <!-- Options are built at runtime from data_explorer.csv, so this card
+           always offers exactly what the Data Explorer offers: the five
+           aggregate groups plus every donor country. -->
+      <div class="sort-custom-dropdown" id="donor-dropdown">
+        <div class="sort-custom-list" id="donor-list"></div>
+        <div class="sort-custom-actions">
+          <button type="button" class="sort-custom-action" id="donor-select-all">Select all</button>
+          <button type="button" class="sort-custom-action" id="donor-clear-all">Clear all</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bar-body">
+    <svg id="axis-svg"></svg>
+    <div id="bar-scroll"><svg id="bar-svg"></svg></div>
+    <div class="empty-note" id="empty-note">Select at least one donor.</div>
+    <div id="bar-hover-popup"></div>
+  </div>
+
+  <div class="chart-footer">
+    <!-- Series key for the stacked bars, sitting immediately left of the
+         footer buttons. Hidden whenever nothing on screen is actually split
+         (no EU member selected), so a single-color ranking carries no legend. -->
+    <div class="bar-legend" id="bar-legend"></div>
+    <div class="footer-icons">
+      <button class="footer-icon-btn" id="info-btn" title="About this data">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><line x1="8" y1="7.1" x2="8" y2="11.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="4.85" r="0.95" fill="currentColor"/></svg>
+      </button>
+      <button class="footer-icon-btn" id="dl-btn" title="Download data">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 4 3-4M2 13h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </button>
+      <div class="share-wrap">
+        <button class="footer-icon-btn" id="share-btn" title="Share">
+          <svg viewBox="0 0 16 16" fill="none"><circle cx="13" cy="3" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="3" cy="8" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="13" cy="13" r="1.6" stroke="currentColor" stroke-width="1.3"/><line x1="4.6" y1="7.2" x2="11.4" y2="4" stroke="currentColor" stroke-width="1.2"/><line x1="4.6" y1="8.8" x2="11.4" y2="12" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <div class="share-dropdown" id="share-dropdown">
+          <div class="share-dropdown-title">Share</div>
+          <div class="share-option" id="opt-image">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="7" r="1.2" stroke="currentColor" stroke-width="1.1"/><polyline points="1,11 5,7.5 8,10 11,7 15,11" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+            Copy diagram as image
+          </div>
+          <div class="share-option" id="opt-link">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5a3.5 3.5 0 0 0 4.95 0l2-2a3.5 3.5 0 0 0-4.95-4.95l-1 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M9.5 6.5a3.5 3.5 0 0 0-4.95 0l-2 2a3.5 3.5 0 0 0 4.95 4.95l1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Copy link to diagram
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="copy-toast">Link copied!</div>
+
+  <!-- ── Info Modal ── -->
+  <div id="info-overlay"></div>
+  <div id="info-modal">
+    <button id="info-close" title="Close">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div id="info-modal-inner">
+      <div id="info-eyebrow">What this view shows</div>
+      <div id="info-body"></div>
+    </div>
+  </div>
+
+</div><!-- /.explorer-wrap -->
+</div><!-- /.explorer-scale-container -->
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="../../assets/data-loader.js"></script>
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   TOTAL CUMULATED AID BY DONOR — horizontal ranking bars
+
+   Sibling card to en_military_allocations_by_donor.html, which plots the military-only
+   ranking. The two files are deliberate near-copies: everything below the
+   METRIC block is identical between them, so a change made here should be
+   ported there (and vice versa) to keep the two tiles in the grid row from
+   drifting apart.
+
+   The donor universe is exactly the Data Explorer's option list: its five
+   aggregate groups plus every donor country. Both are built here from the
+   same data/data_explorer.csv the explorer itself reads, using the explorer's
+   own group definitions (see EU27_COUNTRIES / AGGREGATE_ORDER below).
+════════════════════════════════════════════════════════════════════ */
+
+/* The one block that differs between this file and its military sibling. */
+const METRIC = {
+  key: 'total',
+  title: 'Total Allocations to Ukraine, by Donor',
+  seriesLabel: 'Total aid',
+  color: '#ff6b00',
+  groupColor: '#ffb37f',
+  msgType: 'ust-total-aid-by-donor-height',
+  fileStem: 'ust_total_aid_by_donor',
+  headerFill: 'FFFF6B00'
+};
+
+/* ── EU AID SHARES (this file only — the military sibling has no counterpart) ──
+   data/eu_aid_shares.csv is the release workbook's Figure A2: the aid given by
+   the EU's own bodies (Commission, Council and the EIB) split across the member
+   states — the Commission/Council part by each country's relative contribution
+   to the EU budget, the EIB part by its weight in the bank's capital
+   subscription. Every member country that has a share gets it stacked on top of
+   its own bilateral bar, in a second color with a legend beside the footer
+   buttons, exactly as the Data Explorer draws its multi-series bar view.
+
+   The two parts are NOT independent money: the shares add back up to the 'EU
+   Institutions' donor's own total, so that option and the stacked segments
+   describe the same euros twice (see the info modal, which says so).
+
+   Blue rather than a second orange tint because the aggregate bars already wear
+   a light orange; validated against the cream surface for lightness, chroma,
+   protan/deutan separation and contrast. It is the same blue the Data Explorer
+   uses for its own stacked bars, so the two cards read as one family. */
+const EU_SHARE_COLOR = '#3a5da8';
+const EU_SHARE_LABEL = 'Share of EU allocations';
+const OWN_SHARE_LABEL = 'Bilateral allocations';
+/* A segment thinner than this is not drawn — below a couple of px a sliver
+   reads as a rendering artifact rather than a value, and the 2px separator
+   between the two parts would swallow it anyway. */
+const MIN_SEGMENT_W = 2;
+const SEGMENT_GAP = 2;               // surface-colored gap between the two parts
+
+let DONOR_DATA = [];                 // every selectable donor, aggregates included
+let EU_SHARES = new Map();           // country -> € bn of EU-level aid assigned to it
+let PERIOD_LABEL = '';               // 'Jan 2022–Apr 2026', derived from the data
+let RELEASE_LABEL = 'Ukraine Support Tracker, Release 30 (07/2026)';
+
+/* ── DONOR UNIVERSE ───────────────────────────────────────────────────
+   Mirrors the Data Explorer's aggregates exactly (en_data_explorer.html), so the
+   two widgets can never disagree about what 'EU Members' means. 'EU
+   Institutions' is the explorer's display label for the donor the CSV calls
+   'EU (Commission and Council)'; that raw name is never shown, and the country
+   list below never repeats it.
+──────────────────────────────────────────────────────────────────────── */
+const EU_INSTITUTIONS = 'EU Institutions';
+const EU_INSTITUTIONS_RAW = 'EU (Commission and Council)';
+const EU27_COUNTRIES = ['Austria','Belgium','Bulgaria','Croatia','Cyprus','Czechia','Denmark',
+  'Estonia','Finland','France','Germany','Greece','Hungary','Italy','Latvia','Lithuania',
+  'Luxembourg','Malta','Netherlands','Poland','Portugal','Romania','Slovakia','Slovenia',
+  'Spain','Sweden'];
+const CONTINENTAL_EUROPE_COUNTRIES = [...EU27_COUNTRIES, 'United Kingdom','Norway','Switzerland','Iceland'];
+
+/* Listed in the explorer's own order — this is the order of the 'Aggregates'
+   block in the dropdown. `group: true` marks the ones that are unions of other
+   selectable donors: they double-count when shown alongside their members.
+   EU Institutions is a donor in its own right and overlaps nothing, so it's
+   excluded from that double-counting note, but it's still an aggregate and
+   is drawn in the same lighter tint as the others. */
+const AGGREGATE_DEFS = [
+  { label: 'EU Members',                            constituents: EU27_COUNTRIES,                                     group: true },
+  { label: 'Continental Europe',                    constituents: CONTINENTAL_EUROPE_COUNTRIES,                       group: true },
+  { label: EU_INSTITUTIONS,                         constituents: [EU_INSTITUTIONS_RAW],                              group: false },
+  { label: 'EU Members and EU Institutions',        constituents: [...EU27_COUNTRIES, EU_INSTITUTIONS_RAW],           group: true },
+  { label: 'Continental Europe and EU Institutions',constituents: [...CONTINENTAL_EUROPE_COUNTRIES, EU_INSTITUTIONS_RAW], group: true }
+];
+const AGGREGATE_LABELS = AGGREGATE_DEFS.map(d => d.label);
+
+/* Which donors are drawn. DONOR_DATA always holds every option, so the XLSX
+   export stays complete regardless of what is on screen. */
+let activeDonors = new Set();
+
+/* The ranking's one sort order, used by the chart, the dropdown and the export
+   alike: longest bar first. That is stackTotal, not value — a member country's
+   bar carries its EU share too, so sorting by the bilateral part alone would
+   leave the bars visibly out of order. */
+const byBarLength = (a, b) => b.stackTotal - a.stackTotal;
+
+function computeDonorData(rows){
+  const byCountry = new Map();
+  rows.forEach(r => {
+    let rec = byCountry.get(r.country);
+    if (!rec) { rec = { total:0, military:0, financial:0, humanitarian:0, gdp:0 }; byCountry.set(r.country, rec); }
+    rec.total        += Number(r.total)        || 0;
+    rec.military     += Number(r.military)     || 0;
+    rec.financial    += Number(r.financial)    || 0;
+    rec.humanitarian += Number(r.humanitarian) || 0;
+    /* GDP is a per-donor constant repeated on every monthly row */
+    rec.gdp = Number(r.gdp) || rec.gdp;
+  });
+
+  const sumOf = (names) => names.reduce((acc, name) => {
+    const rec = byCountry.get(name);
+    if (rec) {
+      acc.total += rec.total; acc.military += rec.military;
+      acc.financial += rec.financial; acc.humanitarian += rec.humanitarian;
+      acc.gdp += rec.gdp;
+    }
+    return acc;
+  }, { total:0, military:0, financial:0, humanitarian:0, gdp:0 });
+
+  const aggregates = AGGREGATE_DEFS
+    .filter(def => def.constituents.some(c => byCountry.has(c)))
+    .map(def => ({
+      label: def.label,
+      isAggregate: true,
+      isGroup: def.group,
+      constituents: def.constituents.filter(c => byCountry.has(c)),
+      ...sumOf(def.constituents)
+    }));
+
+  const countries = [...byCountry.keys()]
+    .filter(c => c !== EU_INSTITUTIONS_RAW)
+    .sort()
+    .map(c => ({
+      label: c,
+      isAggregate: false,
+      isGroup: false,
+      constituents: [c],
+      ...sumOf([c])
+    }));
+
+  /* `value` is the donor's own bilateral aid — the number every other part of
+     this card already meant by 'total aid'. `euShare` is the EU-level aid
+     reassigned to it, and `stackTotal` is what the bar is actually as long as,
+     so the ranking sorts by the same quantity the eye compares. Aggregates get
+     no share: 'EU Members' plus the members' own shares would be the same money
+     twice over, and 'EU Members and EU Institutions' already reports that sum. */
+  return [...aggregates, ...countries].map(d => {
+    const value = d[METRIC.key];
+    const euShare = d.isAggregate ? 0 : (EU_SHARES.get(d.label) || 0);
+    return { ...d, value, euShare, stackTotal: value + euShare };
+  });
+}
+
+/* 'Jan 2022–Apr 2026' from the data itself, for the info modal's tag row */
+function computePeriodLabel(rows){
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const keys = rows.map(r => Number(r.year) * 100 + Number(r.month)).filter(k => k > 0);
+  if (!keys.length) return '';
+  const lo = Math.min(...keys), hi = Math.max(...keys);
+  const fmtKey = k => `${MONTHS[(k % 100) - 1]} ${Math.floor(k / 100)}`;
+  return `${fmtKey(lo)}–${fmtKey(hi)}`;
+}
+
+/* ════════════════════════════════════
+   DONOR SELECTOR
+   Same markup and behaviour as the region selector in
+   en_allocations_by_region.html — fixed button label, every change re-renders —
+   with three additions the longer list needs: the options are built from the
+   data rather than written into the markup, the list scrolls and is split into
+   an 'Aggregates' and a 'Countries' block like the explorer's left panel, and
+   'Select all' / 'Clear all' cover the bulk cases.
+
+   Unlike the region chart, overlapping picks are NOT forbidden here: the
+   explorer lets a user put 'EU Members' next to Germany, and this card is a
+   ranking rather than a partition, so the same freedom applies. The dropdown
+   note and the lighter aggregate tint say what the overlap means.
+════════════════════════════════════ */
+function buildDonorDropdown(){
+  const list = document.getElementById('donor-list');
+  const aggregates = DONOR_DATA.filter(d => d.isAggregate);
+  /* countries in the order they will appear in the chart, so finding a donor in
+     the list and finding its bar are the same mental step */
+  const countries = DONOR_DATA.filter(d => !d.isAggregate)
+    .slice().sort(byBarLength);
+
+  const optionHtml = d => `
+    <label class="sort-custom-option">
+      <input type="checkbox" data-value="${d.label}">
+      <span class="cat-swatch" style="background:${d.isAggregate ? METRIC.groupColor : METRIC.color}"></span>
+      <span>${d.label}</span>
+    </label>`;
+
+  list.innerHTML =
+      '<div class="sort-custom-group">Aggregates</div>'
+    + aggregates.map(optionHtml).join('')
+    + '<div class="sort-custom-group">Countries</div>'
+    + countries.map(optionHtml).join('');
+
+  const boxes = list.querySelectorAll('input[type="checkbox"]');
+  /* the boxes take their state from activeDonors, so the default view is
+     defined in one place (see init) instead of in the markup too */
+  boxes.forEach(box => {
+    box.checked = activeDonors.has(box.dataset.value);
+    box.addEventListener('change', () => {
+      if (box.checked) activeDonors.add(box.dataset.value);
+      else activeDonors.delete(box.dataset.value);
+      renderChart();
+    });
+  });
+
+  const allLabels = aggregates.map(d => d.label).concat(countries.map(d => d.label));
+  document.getElementById('donor-select-all').onclick = () => {
+    allLabels.forEach(label => activeDonors.add(label));
+    boxes.forEach(box => { box.checked = true; });
+    renderChart();
+  };
+  document.getElementById('donor-clear-all').onclick = () => {
+    activeDonors.clear();
+    boxes.forEach(box => { box.checked = false; });
+    renderChart();
+  };
+}
+
+(function(){
+  const btn = document.getElementById('donor-btn');
+  const dropdown = document.getElementById('donor-dropdown');
+  btn.addEventListener('click', e=>{ e.stopPropagation(); dropdown.classList.toggle('open'); });
+  document.addEventListener('click', ()=>dropdown.classList.remove('open'));
+  dropdown.addEventListener('click', e=>e.stopPropagation());
+})();
+
+/* ── formatting ───────────────────────────────────────────────────────
+   The ranking spans four orders of magnitude (€115bn down to a few million),
+   so a single fixed precision either rounds the small donors to '€0bn' or
+   litters the big ones with decimals. Precision follows the value instead. */
+function fmtValue(v){
+  if (!(v > 0)) return '€0';
+  if (v >= 10) return `€${Math.round(v)}bn`;
+  if (v >= 1)  return `€${v.toFixed(1)}bn`;
+  /* Below a billion the unit switches rather than the precision: '€40mn' beats
+     '€0.04bn' next to '€30bn', and it keeps the tail of the ranking from
+     reading as a column of near-identical zeroes. */
+  const mn = v * 1000;
+  return `€${mn.toFixed(mn >= 10 ? 0 : 1)}mn`;
+}
+function fmtPct(v){
+  if (!(v > 0)) return '–';
+  return `${v.toFixed(v >= 1 ? 1 : 2)}%`;
+}
+
+/* Rows under the header: the donor's full aid mix, with the aid type this card
+   plots picked out in bold. Identical on both cards, so hovering the same
+   donor on either tile tells the same story. */
+function buildPopupContent(d){
+  /* On a split bar the aid mix describes the BILATERAL part only, and the bold
+     line moves down to 'Total incl. EU share' — otherwise two different totals
+     would both be set in bold and neither would obviously be the bar's length. */
+  const isSplit = d.euShare > 0;
+  const rows = [
+    { key: 'total',        label: isSplit ? OWN_SHARE_LABEL : 'Total aid' },
+    { key: 'military',     label: 'Military'     },
+    { key: 'financial',    label: 'Financial'    },
+    { key: 'humanitarian', label: 'Humanitarian' }
+  ].map(r => `
+    <div class="bar-popup-row${r.key === METRIC.key && !isSplit ? ' is-metric' : ''}">
+      <span class="bar-popup-country">${r.label}</span>
+      <span class="bar-popup-amount">${fmtValue(d[r.key])}</span>
+    </div>
+  `).join('');
+
+  /* The rows above are the bilateral part and its breakdown; these two close the
+     bar off — the second segment, then the length the whole bar stands for. */
+  const splitRows = isSplit ? `
+    <div class="bar-popup-row is-rule">
+      <span class="bar-popup-country">${EU_SHARE_LABEL}</span>
+      <span class="bar-popup-amount">${fmtValue(d.euShare)}</span>
+    </div>
+    <div class="bar-popup-row is-metric">
+      <span class="bar-popup-country">Total incl. EU share</span>
+      <span class="bar-popup-amount">${fmtValue(d.stackTotal)}</span>
+    </div>` : '';
+
+  const pct = d.gdp > 0 ? d.total / d.gdp * 100 : 0;
+  const stackPct = d.gdp > 0 ? d.stackTotal / d.gdp * 100 : 0;
+  const gdpRow = isSplit ? `
+    <div class="bar-popup-row is-rule">
+      <span class="bar-popup-country">Bilateral, % of 2021 GDP</span>
+      <span class="bar-popup-amount">${fmtPct(pct)}</span>
+    </div>
+    <div class="bar-popup-row">
+      <span class="bar-popup-country">Incl. EU share, % of 2021 GDP</span>
+      <span class="bar-popup-amount">${fmtPct(stackPct)}</span>
+    </div>` : `
+    <div class="bar-popup-row is-rule">
+      <span class="bar-popup-country">Total aid, % of 2021 GDP</span>
+      <span class="bar-popup-amount">${fmtPct(pct)}</span>
+    </div>`;
+
+  const note = d.isGroup
+    ? `<div class="bar-popup-note">Aggregate of ${d.constituents.length} donors.</div>`
+    : '';
+
+  return `
+    <div class="bar-popup-header">
+      <span class="bar-popup-title">${d.label}</span>
+      <span class="bar-popup-total">${fmtValue(d.stackTotal)}</span>
+    </div>
+    <div class="bar-popup-list">${rows}${splitRows}${gdpRow}${note}</div>
+  `;
+}
+
+/* ── layout constants ─────────────────────────────────────────────────
+   The donor names sit in a NARROW left gutter: a name breaks onto extra lines
+   as soon as it passes LABEL_WRAP_EM — a column barely wider than one long
+   word — so 'United States' reads as two short lines stacked against its bar
+   rather than one long run of text, exactly as the Data Explorer's ranking
+   bars do. The gutter is then measured per render from the widest resulting
+   LINE, capped at LABEL_GUTTER_MAX of the card so the bars can never be
+   squeezed out; what wrapping cannot fix (an unbreakable word) shrinks, then
+   ellipsizes. The extra lines are paid for out of the GAPS between bars, never
+   out of the bars' own thickness — see the row block in renderChart(). */
+const AXIS_LABEL_REM = 0.86;
+const AXIS_LABEL_MIN_REM = 0.62;
+const LABEL_GUTTER_MAX = 0.42;   // hard ceiling on the names' share of the card width
+const LABEL_WRAP_EM = 5.0;       // width a name wraps at, in multiples of its own font size — tight enough that 'United States' breaks into two short lines
+const LABEL_PAD = 10;            // gap between a name and its bar
+const VALUE_PAD = 66;            // room at the right for the value at a bar's end
+const AXIS_H = 20;               // the fixed value-axis strip above the bars
+const MIN_SLOT = 26;             // per-donor slot below which the plot scrolls
+const LABEL_LINE_RATIO = 1.12;   // leading of a wrapped name, as a multiple of its font size
+const MAX_BAR_H_FRACTION = 0.36; // cap on a bar's thickness, as a share of the available plot
+                                  // height rather than a fixed px value — so with only one or
+                                  // two donors selected the bar fattens along with the freed-up
+                                  // space instead of stopping at a small constant. Same fraction
+                                  // as the Data Explorer's bar view (MAX_BAR in en_data_explorer.html).
+const BAR_PAD_INNER = 0.26;
+const BAR_PAD_OUTER = 0.12;
+const MIN_GAP = 6;               // two bars never touch, however tight the fit
+const BOTTOM_PAD = 34;           // keeps the last bar clear of the footer icons
+
+/* Corner radius of the Data Explorer's ranking bars (rx=1) — the cards read as
+   one family, so the radius is shared rather than tuned per chart. */
+const BAR_CORNER_R = 1;
+
+/* Rounded right end, square base, so the mark stays visually anchored to the
+   zero line (a fully rounded rect floats) — the horizontal counterpart of the
+   region chart's barPath(). */
+function barPath(x, y, w, h, r){
+  const rr = Math.max(0, Math.min(r, h / 2, w));
+  return `M ${x} ${y} L ${x + w - rr} ${y} Q ${x + w} ${y} ${x + w} ${y + rr}`
+       + ` L ${x + w} ${y + h - rr} Q ${x + w} ${y + h} ${x + w - rr} ${y + h}`
+       + ` L ${x} ${y + h} Z`;
+}
+
+/* The segments a donor's bar is made of, left to right, already positioned.
+   One segment for a plain donor; two for an EU member with a share of EU-level
+   aid, separated by a SEGMENT_GAP of bare surface so the boundary is a real
+   edge rather than two fills meeting. Only the last segment gets the rounded
+   end — the ones before it stay square, so a stack reads as one continuous bar.
+   A share too thin to draw is folded back into the base segment rather than
+   dropped, so the bar always spans the donor's full stackTotal. */
+function barSegments(d, xSc){
+  const baseW = Math.max(0, xSc(Math.max(0, d.value)));
+  const shareW = d.euShare > 0 ? Math.max(0, xSc(d.euShare)) : 0;
+
+  if (shareW < MIN_SEGMENT_W) {
+    return [{ x: 0, w: Math.max(0, xSc(Math.max(0, d.stackTotal))), fill: barColorFor(d), round: true }];
+  }
+  if (baseW < MIN_SEGMENT_W) {
+    return [{ x: 0, w: baseW + shareW, fill: EU_SHARE_COLOR, round: true }];
+  }
+  const gap = Math.min(SEGMENT_GAP, shareW - 1);
+  return [
+    { x: 0,             w: baseW,        fill: barColorFor(d), round: false },
+    { x: baseW + gap,   w: shareW - gap, fill: EU_SHARE_COLOR, round: true  }
+  ];
+}
+function barColorFor(d){
+  return d.isAggregate ? METRIC.groupColor : METRIC.color;
+}
+function segmentPath(seg, y, h){
+  return seg.round
+    ? barPath(seg.x, y, seg.w, h, BAR_CORNER_R)
+    : `M ${seg.x} ${y} L ${seg.x + seg.w} ${y} L ${seg.x + seg.w} ${y + h} L ${seg.x} ${y + h} Z`;
+}
+
+/* getComputedTextLength() throws on an unrendered svg (a hidden embed resizing
+   in the background), so every measurement has a fallback. */
+function textWidth(node){
+  try { return node.getComputedTextLength(); } catch (e) { return 0; }
+}
+function ellipsize(node, maxW){
+  if (!(maxW > 0) || textWidth(node) <= maxW) return;
+  let text = node.textContent;
+  while (text.length > 1) {
+    text = text.slice(0, -1);
+    node.textContent = text + '…';
+    if (textWidth(node) <= maxW) return;
+  }
+}
+
+/* Greedily wraps `name` into as many lines as needed so each line's real
+   rendered width (via measureFn) fits within maxWidth. Falls back to a single
+   unwrapped line for single-word names (nothing left to break on) — those are
+   handled by the font shrink / ellipsis further down. Same helper as the Data
+   Explorer's ranking bars (en_data_explorer.html), so a donor name breaks in the
+   same place in both. */
+function wrapLabelAuto(name, maxWidth, measureFn){
+  if (measureFn(name) <= maxWidth) return [name];
+  const words = name.split(' ');
+  if (words.length === 1) return [name];
+  const lines = [];
+  let cur = '';
+  words.forEach(w => {
+    const test = cur ? cur + ' ' + w : w;
+    if (cur && measureFn(test) > maxWidth) { lines.push(cur); cur = w; }
+    else cur = test;
+  });
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/* The legend only earns its space when something on screen is actually split in
+   two, so it appears with the first EU member selected and disappears with the
+   last. It is also dropped on a very narrow card, where it would crowd the
+   footer buttons — the popup names both parts by value in that case, so nothing
+   becomes unreadable. */
+const LEGEND_MIN_CARD_W = 380;
+function updateLegend(data, cardW){
+  const legend = document.getElementById('bar-legend');
+  const anySplit = data.some(d => d.euShare > 0);
+  if (!anySplit || cardW < LEGEND_MIN_CARD_W) { legend.style.display = 'none'; legend.innerHTML = ''; return; }
+  legend.innerHTML = [
+    { col: METRIC.color,   label: OWN_SHARE_LABEL },
+    { col: EU_SHARE_COLOR, label: EU_SHARE_LABEL  }
+  ].map(it => `<span class="legend-item"><span class="legend-swatch" style="background:${it.col}"></span>${it.label}</span>`).join('');
+  legend.style.display = 'flex';
+}
+
+/* Set while renderChart() is re-running itself after the scrollbar appeared or
+   vanished, so that second pass can never trigger a third. */
+let reflowingForScrollbar = false;
+
+function renderChart(){
+  const body = document.querySelector('.bar-body');
+  const scroller = document.getElementById('bar-scroll');
+  /* Measured on the SCROLLER, not the card: where scrollbars take up layout
+     space (Windows, and macOS with 'always show scrollbars'), a long ranking
+     narrows the plot by the scrollbar's width. Both SVGs are then pinned to
+     that same width — the unit-label strip explicitly, since it lives outside
+     the scroller — so the two stay aligned either way. */
+  const W = scroller.clientWidth || body.clientWidth || 530;
+  const bodyH = body.clientHeight || 370;
+
+  const DATA = DONOR_DATA
+    .filter(d => activeDonors.has(d.label))
+    .slice()
+    .sort(byBarLength);
+
+  const axisSvg = d3.select('#axis-svg');
+  const svg = d3.select('#bar-svg');
+  axisSvg.selectAll('*').remove();
+  svg.selectAll('*').remove();
+  document.getElementById('empty-note').classList.toggle('show', DATA.length === 0);
+  updateLegend(DATA, body.clientWidth || W);
+  axisSvg.style('width', `${W}px`);
+  if (!DATA.length) {
+    axisSvg.attr('viewBox', `0 0 ${W} ${AXIS_H}`).attr('height', AXIS_H);
+    svg.attr('viewBox', `0 0 ${W} 10`).attr('height', 10);
+    popupCtl = null;
+    return;
+  }
+
+  /* ── left gutter: wrap the names early, then shrink / ellipsize ──
+     Every multi-word name breaks at LABEL_WRAP_EM rather than only the ones
+     that would otherwise overrun the card, so the names form a narrow column
+     of short lines instead of a wide block of text. Shrinking is left for what
+     wrapping cannot fix — an unbreakable single word wider than the hard cap,
+     which only happens on a very narrow card — and after that re-wrapping at
+     the smaller size fits more words per line. */
+  const cap = Math.max(60, W * LABEL_GUTTER_MAX - LABEL_PAD);
+  const probe = svg.append('g').attr('font-size', `${AXIS_LABEL_REM}rem`);
+  const probeNode = probe.append('text').node();
+  const measureLabel = str => { probeNode.textContent = str; return textWidth(probeNode); };
+  const widestOf = lines => Math.max(0, ...lines.map(measureLabel));
+
+  const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  /* Never wider than the hard cap, so a narrow card still wins the argument. */
+  const wrapCapFor = rem => Math.min(cap, LABEL_WRAP_EM * rem * rootPx);
+
+  let labelRem = AXIS_LABEL_REM;
+  let labelLines = DATA.map(d => wrapLabelAuto(d.label, wrapCapFor(labelRem), measureLabel));
+  let widest = widestOf(labelLines.flat());
+  /* Measured against the HARD cap, not the wrap width: a single long word
+     ('Netherlands') sticking out past the wrap column is expected and must not
+     drag the whole ranking's names down a font size. */
+  if (widest > cap && widest > 0) {
+    labelRem = Math.max(AXIS_LABEL_MIN_REM, AXIS_LABEL_REM * (cap / widest));
+    probe.attr('font-size', `${labelRem.toFixed(3)}rem`);
+    labelLines = DATA.map(d => wrapLabelAuto(d.label, wrapCapFor(labelRem), measureLabel));
+    widest = widestOf(labelLines.flat());
+  }
+  const gutter = Math.min(cap, widest) + LABEL_PAD;
+  probe.remove();
+
+  const lineH = Math.round(labelRem * rootPx * LABEL_LINE_RATIO);
+
+  const pad = { t: 6, r: VALUE_PAD, b: BOTTOM_PAD, l: gutter };
+  const iW = Math.max(40, W - pad.l - pad.r);
+
+  /* ── rows: fixed bar thickness, elastic gaps ──────────────────────────
+     Bar thickness comes from the donor count and the space available, exactly
+     as it did before names wrapped — MIN_SLOT still marks the point where the
+     plot stops shrinking and #bar-scroll starts scrolling instead, with the
+     value axis staying put in its own svg above. What a stack of name lines
+     needs on top of that is taken out of the GAP between bars, per row: only
+     the neighbours of a four-line aggregate are pushed apart, the rest of the
+     ranking stays tight. Any height left over widens the gap so the bars still
+     fill the card. Same behaviour as the Data Explorer's ranking bars. */
+  const availH = Math.max(60, bodyH - AXIS_H);
+  const availInner = Math.max(20, availH - pad.t - pad.b);
+  const slotFit = availInner / (DATA.length - BAR_PAD_INNER + 2 * BAR_PAD_OUTER);
+  const slot = Math.max(MIN_SLOT, slotFit);
+  const maxBarH = Math.floor(availInner * MAX_BAR_H_FRACTION);
+  const barH = Math.min(maxBarH, slot * (1 - BAR_PAD_INNER));
+  const outerPad = BAR_PAD_OUTER * slot;
+
+  /* +4 so two adjacent names keep a hair of air between them even where both
+     rows are label-driven rather than bar-driven. */
+  const rowHs = labelLines.map(l => Math.max(barH, l.length * lineH + 4));
+  const rowsH = rowHs.reduce((a, b) => a + b, 0);
+  let gap = Math.max(MIN_GAP, slot - barH);
+  const spanFor = g0 => rowsH + (DATA.length - 1) * g0 + 2 * outerPad;
+  if (DATA.length > 1 && spanFor(gap) < availInner) {
+    gap += (availInner - spanFor(gap)) / (DATA.length - 1);
+  }
+
+  const span = spanFor(gap);
+  const iH = Math.max(20, span, DATA.length > 1 ? 0 : availInner);
+  const H = iH + pad.t + pad.b;
+
+  svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+  axisSvg.attr('viewBox', `0 0 ${W} ${AXIS_H}`).attr('height', AXIS_H);
+  const g = svg.append('g').attr('transform', `translate(${pad.l},${pad.t})`);
+
+  /* Row tops, walked once: a row is as tall as the taller of its bar and its
+     name, and its bar is centred inside it. */
+  const rowTops = [];
+  let cursor = outerPad + Math.max(0, (iH - span) / 2);
+  rowHs.forEach(h => { rowTops.push(cursor); cursor += h + gap; });
+
+  /* 1.02 headroom only: the value labels sit outside the plot, in pad.r.
+     Scaled on stackTotal, so a member country's EU share is inside the plot
+     rather than running out past the axis. */
+  const maxVal = Math.max(0.01, ...DATA.map(d => d.stackTotal));
+  const xSc = d3.scaleLinear().domain([0, maxVal * 1.02]).range([0, iW]).nice();
+  const xTickVals = xSc.ticks(5).length >= 2 ? xSc.ticks(5) : [0, xSc.domain()[1]];
+  const tickFmt = xSc.domain()[1] >= 5 ? (v => v.toFixed(0)) : (v => v.toFixed(1));
+
+  /* ── the fixed axis strip: unit label, ticks, and the rule the bars hang
+     from. The region chart's y-axis, turned on its side and lifted out of the
+     scroller so the numbers stay put while a long ranking scrolls past. ── */
+  axisSvg.append('text')
+    .attr('x', 4).attr('y', 13)
+    .attr('font-size', '0.9rem').attr('fill', '#000')
+    .text('€ billion');
+  /* gridlines — recessive, behind the bars, aligned with the ticks above */
+  g.append('g').selectAll('line').data(xTickVals).enter().append('line')
+    .attr('y1', 0).attr('y2', iH).attr('x1', d => xSc(d)).attr('x2', d => xSc(d))
+    .attr('stroke', '#e0e0e0');
+
+  /* zero baseline */
+  g.append('line')
+    .attr('x1', 0).attr('x2', 0).attr('y1', 0).attr('y2', iH)
+    .attr('stroke', '#ddd');
+
+  /* bars + direct labels */
+  const bars = [];
+  const centers = [];
+  DATA.forEach((d, i) => {
+    const y = rowTops[i] + (rowHs[i] - barH) / 2;
+    centers.push(rowTops[i] + rowHs[i] / 2);
+    const w = Math.max(0, xSc(Math.max(0, d.stackTotal)));
+
+    /* One donor can be more than one mark now (bilateral + EU share), so the
+       hover highlight dims a LIST of paths rather than a single one. */
+    const segs = barSegments(d, xSc).map(seg =>
+      g.append('path')
+        .attr('d', segmentPath(seg, y, barH))
+        .attr('fill', seg.fill)
+        .attr('class', 'bar-rect')
+    );
+    bars.push(segs);
+
+    /* value just past the bar's end, in ink rather than the series color so it
+       stays legible over the cream surface */
+    g.append('text')
+      .attr('x', w + 7).attr('y', y + barH / 2)
+      .attr('dominant-baseline', 'central')
+      .attr('font-size', '0.86rem').attr('font-weight', 700).attr('fill', '#1a1a1a')
+      .text(fmtValue(d.stackTotal));
+
+    /* donor name in the left gutter, right-aligned against its bar; a wrapped
+       name's lines are centred as a block on the bar */
+    const nameLines = labelLines[i];
+    const name = g.append('text')
+      .attr('x', -LABEL_PAD)
+      .attr('text-anchor', 'end')
+      .attr('dominant-baseline', 'central')
+      .attr('font-size', `${labelRem.toFixed(3)}rem`).attr('fill', '#1a1a1a');
+    const firstLineY = y + barH / 2 - (nameLines.length - 1) * lineH / 2;
+    nameLines.forEach((line, li) => {
+      const tspan = name.append('tspan')
+        .attr('x', -LABEL_PAD).attr('y', firstLineY + li * lineH)
+        .text(line);
+      ellipsize(tspan.node(), gutter - LABEL_PAD);
+    });
+  });
+
+  /* One transparent overlay across the whole plot rather than a rect per bar:
+     the donor shown is decided by which horizontal band the cursor is in, so
+     every y position resolves to a bar — gaps included, and short bars are as
+     easy to hit as long ones. The band centres are the ROW centres collected
+     above, so a tall wrapped row claims the extra space its name occupies. */
+  const overlay = g.append('rect')
+    .attr('class', 'bar-hit')
+    .attr('x', -pad.l).attr('y', 0)
+    .attr('width', pad.l + iW + pad.r).attr('height', iH)
+    .attr('fill', 'transparent');
+
+  setupBarHoverPopups(overlay, centers, iH, bars, DATA);
+
+  /* Setting the plot's height is what makes the scrollbar appear or disappear,
+     which on classic-scrollbar platforms changes the very width this render was
+     laid out against. One corrective pass fixes it; the flag stops that pass
+     from starting another. */
+  if (!reflowingForScrollbar && scroller.clientWidth !== W) {
+    reflowingForScrollbar = true;
+    renderChart();
+    reflowingForScrollbar = false;
+  }
+}
+
+/* ── listeners that outlive a render ──────────────────────────────────
+   renderChart() rebuilds the overlay on every resize, but the popup element,
+   the scroller and the document persist — so anything bound to THEM is bound
+   once here and reaches the current render through popupCtl, rather than each
+   closure stacking another listener per reflow.
+────────────────────────────────────────────────────────────────────── */
+let popupCtl = null;
+(function bindPersistentPopupListeners(){
+  const popup = document.getElementById('bar-hover-popup');
+
+  popup.addEventListener('mouseleave', () => {
+    if (!popupCtl) return;
+    if (popupCtl.isPinned()) popupCtl.unpin();
+    else popupCtl.scheduleHide();
+  });
+  popup.addEventListener('mouseenter', () => popupCtl && popupCtl.cancelHide());
+
+  /* A click outside the pinned card releases it — also the only release path
+     on touch, where mouseleave never fires. */
+  document.addEventListener('click', (e) => {
+    if (!popupCtl || !popupCtl.isPinned()) return;
+    if (popupCtl.ownsTarget(e.target)) return;
+    popupCtl.unpin();
+  });
+
+  /* Safety net: a pin made without ever entering the card gets no mouseleave
+     from it, so leaving the whole chart releases it too. */
+  document.querySelector('.explorer-wrap').addEventListener('mouseleave', () => {
+    if (popupCtl && popupCtl.isPinned()) popupCtl.unpin();
+  });
+
+  /* Wheel-scrolling the ranking moves the bars under a stationary cursor
+     without firing mousemove, so the card would keep naming the wrong donor —
+     dismiss it and let the next move re-resolve. A pinned card is the user's
+     explicit choice and survives. */
+  document.getElementById('bar-scroll').addEventListener('scroll', () => {
+    if (popupCtl && !popupCtl.isPinned()) popupCtl.hideNow();
+  }, { passive: true });
+})();
+
+/* `data` is the rendered (selected, sorted) subset of DONOR_DATA — the popup
+   indexes into it, so a hover always resolves to the bar under the cursor. */
+function setupBarHoverPopups(overlay, centers, iH, bars, data){
+  const barBody = document.querySelector('.bar-body');
+  const popup = document.getElementById('bar-hover-popup');
+  const el = overlay.node();
+  let hideTimer = null;
+  let activeIndex = -1;
+  let pinnedIndex = -1;
+
+  /* A reflow re-enters this function with a fresh overlay while the popup
+     element itself persists, so any pin from the previous render is dropped. */
+  popup.classList.remove('show', 'pinned');
+
+  function cancelHide(){
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+  }
+  function scheduleHide(){
+    cancelHide();
+    hideTimer = setTimeout(() => popup.classList.remove('show'), 250);
+  }
+  function hideNow(){
+    cancelHide();
+    activeIndex = -1;
+    clearHighlight();
+    popup.classList.remove('show');
+  }
+
+  /* The footer icon cluster floats over the bottom-right of the card and the
+     popup sits above it in z-order, so the buttons are treated as no-go areas
+     rather than something the popup happens to miss. Rects come back in
+     .bar-body layout px, padded so the card never crowds them. */
+  const KEEP_CLEAR = 8;
+  function blockedRects(bodyRect, scale){
+    const out = [];
+    document.querySelectorAll('.footer-icons, .share-dropdown.open, .bar-legend').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      out.push({
+        left:   (r.left   - bodyRect.left) / scale - KEEP_CLEAR,
+        top:    (r.top    - bodyRect.top)  / scale - KEEP_CLEAR,
+        right:  (r.right  - bodyRect.left) / scale + KEEP_CLEAR,
+        bottom: (r.bottom - bodyRect.top)  / scale + KEEP_CLEAR
+      });
+    });
+    return out;
+  }
+
+  function positionAt(clientX, clientY){
+    const bodyRect = barBody.getBoundingClientRect();
+    const scale = bodyRect.width / barBody.clientWidth;
+    const offset = 14;
+    const w = popup.offsetWidth, h = popup.offsetHeight;
+    const cx = (clientX - bodyRect.left) / scale;
+    const cy = (clientY - bodyRect.top) / scale;
+    const maxLeft = barBody.clientWidth - w - 4;
+    const maxTop = barBody.clientHeight - h - 4;
+    const blocked = blockedRects(bodyRect, scale);
+    const overlaps = (l, t) => blocked.some(r =>
+      l < r.right && l + w > r.left && t < r.bottom && t + h > r.top);
+    const inBounds = (l, t) => l >= 4 && l <= maxLeft && t >= 4 && t <= maxTop;
+
+    /* Cursor-anchored placements in preference order: below-right first, then
+       flipped up and/or left. The first one that fits the panel and clears the
+       buttons wins, so the card flips instead of covering them. */
+    let pick = [
+      [cx + offset, cy + offset],
+      [cx + offset, cy - offset - h],
+      [cx - offset - w, cy + offset],
+      [cx - offset - w, cy - offset - h]
+    ].find(([l, t]) => inBounds(l, t) && !overlaps(l, t));
+
+    if (!pick) {
+      let left = Math.max(4, Math.min(cx + offset, maxLeft));
+      let top = Math.max(4, Math.min(cy + offset, maxTop));
+      blocked.forEach(r => {
+        if (!(left < r.right && left + w > r.left && top < r.bottom && top + h > r.top)) return;
+        if (r.top - h >= 4) top = r.top - h;
+        else if (r.left - w >= 4) left = r.left - w;
+        else top = Math.min(r.bottom, maxTop);
+      });
+      pick = [left, top];
+    }
+    popup.style.left = `${pick[0]}px`;
+    popup.style.top = `${pick[1]}px`;
+  }
+
+  /* Handlers live on the hit rect, so the highlight has to be applied to the
+     bar explicitly — a CSS :hover on the bar would never fire. */
+  function highlight(i){
+    bars.forEach((segs, bi) => segs.forEach(s => s.attr('opacity', bi === i ? 0.82 : 1)));
+  }
+  function clearHighlight(){
+    bars.forEach(segs => segs.forEach(s => s.attr('opacity', 1)));
+  }
+
+  /* Which band the cursor is in. The overlay spans the plot's [0, iH] in user
+     units, so the client y is rescaled into that range and matched to the
+     nearest band centre — boundaries land midway between neighbouring bars. */
+  function indexAt(clientY){
+    const r = el.getBoundingClientRect();
+    const y = (clientY - r.top) / r.height * iH;
+    let best = 0;
+    centers.forEach((cy, i) => {
+      if (Math.abs(y - cy) < Math.abs(y - centers[best])) best = i;
+    });
+    return best;
+  }
+
+  function showDonor(i, clientX, clientY){
+    activeIndex = i;
+    cancelHide();
+    highlight(i);
+    popup.innerHTML = buildPopupContent(data[i]);
+    popup.classList.add('show');
+    positionAt(clientX, clientY);
+  }
+
+  /* ── hover vs. pinned ──────────────────────────────────────────────
+     Hovering drives the card: the band the cursor sits in decides which donor
+     is shown, the card trails the cursor, and leaving the plot dismisses it.
+     Clicking a bar PINS it: the card stops following and becomes interactive
+     (see .pinned in the CSS), so it can be read and its list scrolled. Moving
+     off the card releases the pin and restores plain hover.
+  ─────────────────────────────────────────────────────────────────── */
+  function pinAt(i, clientX, clientY){
+    pinnedIndex = i;
+    showDonor(i, clientX, clientY);
+    popup.classList.add('pinned');
+  }
+  function unpin(){
+    pinnedIndex = -1;
+    activeIndex = -1;
+    popup.classList.remove('pinned', 'show');
+    clearHighlight();
+    cancelHide();
+  }
+  /* hand this render's state to the persistent popup/document listeners */
+  popupCtl = {
+    isPinned: () => pinnedIndex !== -1,
+    ownsTarget: (t) => t === el || popup.contains(t),
+    unpin, cancelHide, scheduleHide, hideNow
+  };
+
+  el.addEventListener('mousemove', (e) => {
+    if (pinnedIndex !== -1) return;   // pinned: cursor no longer drives the card
+    const i = indexAt(e.clientY);
+    /* only rebuild the card when the cursor crosses into another band */
+    if (i !== activeIndex) showDonor(i, e.clientX, e.clientY);
+    else positionAt(e.clientX, e.clientY);
+  });
+  el.addEventListener('mouseleave', () => {
+    if (pinnedIndex !== -1) return;   // pinned: survives the trip to the card
+    activeIndex = -1;
+    clearHighlight();
+    scheduleHide();
+  });
+
+  el.addEventListener('click', (e) => {
+    const i = indexAt(e.clientY);
+    /* clicking the pinned donor again releases it, so the same gesture
+       toggles; clicking a different bar moves the pin there */
+    if (pinnedIndex === i) unpin();
+    else pinAt(i, e.clientX, e.clientY);
+  });
+}
+
+/* eu_aid_shares.csv columns: country,iso,bilateral_pct_gdp,eu_share_pct_gdp,
+   total_pct_gdp,eu_share_bn. Optional by design — an older data/ folder without
+   the file leaves EU_SHARES empty and the card falls back to plain single-color
+   bars rather than failing to draw. */
+async function loadEuShares(){
+  try {
+    const rows = await USTData.fetchCSV('eu_aid_shares.csv');
+    rows.forEach(r => {
+      const bn = Number(r.eu_share_bn);
+      if (r.country && bn > 0) EU_SHARES.set(String(r.country), bn);
+    });
+  } catch (e) {
+    console.warn('Could not load eu_aid_shares.csv — EU shares will not be shown', e);
+  }
+}
+
+async function init(){
+  const [rows] = await Promise.all([
+    USTData.fetchCSV('data_explorer.csv'),
+    loadEuShares()
+  ]);
+  DONOR_DATA = computeDonorData(rows);
+  PERIOD_LABEL = computePeriodLabel(rows);
+  RELEASE_LABEL = await USTData.fetchReleaseLabel(RELEASE_LABEL);
+
+  /* The opening view: every country. Aggregates — EU Institutions included —
+     are left out: they would tower over the countries beside them and say
+     nothing new on first sight. */
+  activeDonors = new Set(
+    DONOR_DATA.filter(d => !d.isAggregate)
+      .map(d => d.label)
+  );
+
+  buildDonorDropdown();
+  renderChart();
+}
+init();
+
+/* ════════════════════════════════════
+   DOWNLOAD (XLSX export of every donor's allocations)
+════════════════════════════════════ */
+let kielLogoPng = null;
+async function getKielLogoPng(){
+  if (kielLogoPng) return kielLogoPng;
+  const svgText = await fetch('../../assets/Kiel Institut Logo.svg').then(r => r.text());
+  const svgBlob = new Blob([svgText], {type:'image/svg+xml'});
+  const svgUrl  = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve; img.onerror = reject; img.src = svgUrl;
+  });
+  const scale = 3;
+  const canvas = document.createElement('canvas');
+  canvas.width  = img.naturalWidth  * scale;
+  canvas.height = img.naturalHeight * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  URL.revokeObjectURL(svgUrl);
+  kielLogoPng = {
+    dataUrl: canvas.toDataURL('image/png'),
+    width: img.naturalWidth, height: img.naturalHeight
+  };
+  return kielLogoPng;
+}
+
+document.getElementById('dl-btn').addEventListener('click', async () => {
+  /* One sheet holding every option the donor selector offers, in the selector's
+     own layout: the aggregates first (their dropdown order), a separator band,
+     then the countries ranked by the metric. DONOR_DATA always holds all of
+     them, so the export is a full download whatever is ticked on screen.
+
+     Shares are of all tracked aid — the donors that actually partition it,
+     i.e. the countries plus EU Institutions — so the aggregate rows, which are
+     sums over those same donors, stay comparable instead of breaking the
+     arithmetic of the column. */
+  const aggregates = DONOR_DATA.filter(d => d.isAggregate);
+  const countries  = DONOR_DATA.filter(d => !d.isAggregate)
+    .slice().sort(byBarLength);
+  const total = DONOR_DATA.filter(d => !d.isAggregate || !d.isGroup)
+    .reduce((s, d) => s + d.value, 0);
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Kiel Institute for the World Economy — Ukraine Support Tracker';
+  wb.created = new Date();
+
+  const leftPad = 2, topPad = 2;
+
+  function addSheet(name, headers, widths, rows, subtitle){
+    const ws = wb.addWorksheet(name, { views: [{ showGridLines: false }] });
+    const firstCol = leftPad + 1;
+    const lastCol  = leftPad + headers.length;
+    const logoCol  = lastCol + 1;
+
+    for (let i = 0; i < topPad; i++) ws.addRow([]);
+    [1,2,3,4].forEach(off => ws.mergeCells(topPad + off, firstCol, topPad + off, lastCol));
+
+    const titleCell = ws.getCell(topPad + 1, firstCol);
+    titleCell.value = `Ukraine Support Tracker — ${METRIC.title}`;
+    titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFF6B00' } };
+    ws.getRow(topPad + 1).height = 26;
+
+    const releaseCell = ws.getCell(topPad + 2, firstCol);
+    releaseCell.value = RELEASE_LABEL;
+    releaseCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF555555' } };
+    ws.getRow(topPad + 2).height = 15;
+
+    const subtitleCell = ws.getCell(topPad + 3, firstCol);
+    subtitleCell.value = subtitle;
+    subtitleCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF666666' } };
+    ws.getRow(topPad + 3).height = 15;
+
+    const sourceCell = ws.getCell(topPad + 4, firstCol);
+    sourceCell.value = 'Data Source: Kiel Institute for the World Economy — Ukraine Support Tracker (kiel-institute.de/ukraine)';
+    sourceCell.font = { name: 'Calibri', size: 8.5, italic: true, color: { argb: 'FF888888' } };
+    ws.getRow(topPad + 4).height = 14;
+    ws.addRow([]);
+
+    const headerRow = ws.addRow([...Array(leftPad).fill(null), ...headers]);
+    headerRow.eachCell({ includeEmpty: false }, cell => {
+      cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: METRIC.headerFill } };
+      cell.alignment = { vertical: 'middle', wrapText: true };
+    });
+    headerRow.height = 26;
+
+    /* A row given as { section: 'CAPTION' } becomes a merged separator band —
+       the visual break between the aggregate block and the country block. */
+    rows.forEach(cells => {
+      if (cells && cells.section !== undefined) {
+        const bandRow = ws.addRow([]);
+        ws.mergeCells(bandRow.number, firstCol, bandRow.number, lastCol);
+        const bandCell = ws.getCell(bandRow.number, firstCol);
+        bandCell.value = cells.section;
+        bandCell.font = { name: 'Calibri', size: 9, bold: true, color: { argb: 'FF666666' } };
+        bandCell.alignment = { vertical: 'middle' };
+        for (let c = firstCol; c <= lastCol; c++) {
+          ws.getCell(bandRow.number, c).fill =
+            { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEDE7DA' } };
+        }
+        bandRow.height = 18;
+        return;
+      }
+      const dataRow = ws.addRow([...Array(leftPad).fill(null), ...cells]);
+      dataRow.font = { name: 'Calibri', size: 10 };
+      cells.forEach((v, i) => {
+        const cell = dataRow.getCell(firstCol + i);
+        if (typeof v === 'number') cell.numFmt = '0.000';
+      });
+      dataRow.getCell(firstCol + headers.length - 1).alignment = { wrapText: true, vertical: 'top' };
+    });
+
+    ws.columns = [...Array(leftPad).fill({ width: 3 }), ...widths.map(w => ({ width: w }))];
+    return { ws, logoCol };
+  }
+
+  /* The EU-share columns are blank for donors that have none (non-EU countries
+     and every aggregate), rather than a zero — a blank says 'does not apply',
+     a 0 would say 'received nothing from the EU budget'. */
+  const prettyName = c => c === EU_INSTITUTIONS_RAW ? EU_INSTITUTIONS : c;
+  const toCells = d => [d.label, d.total, d.military, d.financial, d.humanitarian,
+    d.euShare > 0 ? d.euShare : '',
+    d.euShare > 0 ? d.stackTotal : '',
+    total > 0 ? d.value / total : 0,
+    d.isAggregate ? d.constituents.map(prettyName).join(', ') : ''];
+
+  const donorSheet = addSheet(
+    'Donors',
+    ['Donor', 'Total bilateral aid (€ bn)', 'Military (€ bn)', 'Financial (€ bn)', 'Humanitarian (€ bn)',
+     'Share of EU allocations (€ bn)', 'Total incl. EU share (€ bn)',
+     `Share of all tracked ${METRIC.seriesLabel.toLowerCase()}`, 'Countries included'],
+    [34, 17, 15, 15, 16, 18, 18, 18, 60],
+    [
+      { section: 'AGGREGATES — sums over the countries below; they overlap one another, so do not add them together' },
+      ...aggregates.map(toCells),
+      { section: 'COUNTRIES' },
+      ...countries.map(toCells)
+    ],
+    `${METRIC.seriesLabel} cumulated over ${PERIOD_LABEL || 'the full period'} · ${countries.length} countries and ${aggregates.length} aggregates`
+  );
+  /* the 8th data column is the percentage one */
+  donorSheet.ws.eachRow(row => {
+    const cell = row.getCell(leftPad + 8);
+    if (typeof cell.value === 'number') cell.numFmt = '0.0%';
+  });
+
+  try {
+    const logo = await getKielLogoPng();
+    const imgId = wb.addImage({ base64: logo.dataUrl, extension: 'png' });
+    const logoDisplayHeight = 64;
+    const logoDisplayWidth  = logoDisplayHeight * (logo.width / logo.height);
+    wb.eachSheet(ws => {
+      ws.addImage(imgId, {
+        tl: { col: leftPad + 8 + 0.05, row: topPad + 0.05 },
+        ext: { width: logoDisplayWidth, height: logoDisplayHeight },
+        editAs: 'absolute'
+      });
+    });
+  } catch (e) {
+    console.warn('Could not embed Kiel Institute logo in export:', e);
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `Ukraine Support Tracker, ${METRIC.title}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* ════════════════════════════════════
+   SHARE (image / link)
+════════════════════════════════════ */
+(function(){
+  const shareBtn = document.getElementById('share-btn');
+  const shareDropdown = document.getElementById('share-dropdown');
+  shareBtn.addEventListener('click', e=>{ e.stopPropagation(); shareDropdown.classList.toggle('open'); });
+  document.addEventListener('click', ()=>shareDropdown.classList.remove('open'));
+  shareDropdown.addEventListener('click', e=>e.stopPropagation());
+})();
+
+function showCopyToast(msg){
+  const toast = document.getElementById('copy-toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'), 1800);
+}
+
+document.getElementById('opt-link').addEventListener('click', () => {
+  navigator.clipboard.writeText(window.location.href).catch(()=>{});
+  document.getElementById('share-dropdown').classList.remove('open');
+  showCopyToast('Link copied!');
+});
+
+/* CSS gives shapes their stroke/fill via stylesheet rules that won't travel with a
+   standalone serialized SVG, so bake the relevant computed styles into inline
+   style attributes on a 1:1 cloned tree before serializing. */
+function inlineComputedStyles(srcEl, destEl){
+  const props = ['fill','stroke','stroke-width','stroke-dasharray','opacity','fill-opacity','stroke-opacity','font-size','font-family','font-weight','text-anchor','dominant-baseline'];
+  const cs = getComputedStyle(srcEl);
+  let style = '';
+  props.forEach(p=>{ const v = cs.getPropertyValue(p); if(v) style += `${p}:${v};`; });
+  if(style) destEl.setAttribute('style', style + (destEl.getAttribute('style')||''));
+  const srcChildren = srcEl.children;
+  const destChildren = destEl.children;
+  for(let i=0;i<srcChildren.length;i++){
+    inlineComputedStyles(srcChildren[i], destChildren[i]);
+  }
+}
+
+function svgToPngImage(svgEl, w, h){
+  return new Promise((resolve,reject)=>{
+    w = Math.max(1, Math.round(w));
+    h = Math.max(1, Math.round(h));
+    const clone = svgEl.cloneNode(true);
+    inlineComputedStyles(svgEl, clone);
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    if(!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const xml = new XMLSerializer().serializeToString(clone);
+    const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w * 2; canvas.height = h * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2,2);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      const out = new Image();
+      out.onload = () => resolve({img: out, w, h});
+      out.onerror = reject;
+      out.src = canvas.toDataURL('image/png');
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   IMAGE-EXPORT STYLE SETTINGS — tweak these to change the exported PNG.
+
+   All sizes are px of the export layout (the card is laid out `width` px
+   wide, then rendered at width × pixelRatio actual image pixels).
+
+   - width          : exported image width. The height follows the chart
+                      body's on-screen aspect ratio automatically.
+   - pixelRatio     : resolution multiplier for the final PNG (2 = retina).
+   - titleFontSize  : the blue title in the header.
+   - logoWidth      : Kiel logo width in the top-right corner.
+   - headerPadding  : CSS padding of the header block. The 2nd value (right
+                      padding, 380px) must stay wide enough that the title
+                      doesn't run underneath the logo.
+   - footerFontSize / footerPadding : the "Data source: …" note at the bottom.
+   - legendFontSize / legendSwatch   : the series key ("Bilateral allocations /
+                      Share of EU allocations"). On screen it floats over the
+                      bottom-right of the plot next to the icon buttons; in the
+                      export the buttons are dropped and it becomes a normal
+                      right-aligned row under the last bar.
+
+   Note there is no bottom trim here: unlike the region chart, the plot's
+   bottom padding is only BOTTOM_PAD (which keeps the last bar clear of the
+   footer icons), and the export drops the icons — so trimming it would clip
+   the last bar rather than remove dead space. The export renders the FULL
+   ranking, including the rows that scroll out of view on screen.
+   ═════════════════════════════════════════════════════════════════════ */
+const EXPORT_STYLE = {
+  width:            1600,
+  pixelRatio:       2,
+  titleFontSize:    68,
+  logoWidth:        340,
+  headerPadding:    '20px 380px 16px 22px',
+  footerFontSize:   30,
+  footerPadding:    '16px 22px',
+  legendFontSize:   28,
+  legendSwatch:     26,
+};
+
+async function copyChartAsImage(){
+  const panel = document.getElementById('explorer-wrap');
+  if(!panel) return;
+
+  const EXPORT_W = EXPORT_STYLE.width;
+
+  const card = document.createElement('div');
+  card.style.cssText = `position:fixed;left:-99999px;top:0;width:${EXPORT_W}px;background:#f6f1e7;font-family:${getComputedStyle(document.body).fontFamily};color:#1a1a1a;`;
+
+  const header = document.createElement('div');
+  header.style.cssText = `position:relative;padding:${EXPORT_STYLE.headerPadding};min-height:150px;box-sizing:border-box;display:flex;align-items:center;`;
+  header.innerHTML = `
+    <div style="font-size:${EXPORT_STYLE.titleFontSize}px;font-weight:700;line-height:1.25;color:#174abb;">${document.querySelector('.chart-title').textContent}</div>
+  `;
+  const logoWrap = document.createElement('div');
+  logoWrap.style.cssText = `position:absolute;top:20px;right:22px;width:${EXPORT_STYLE.logoWidth}px;display:flex;align-items:center;`;
+  const logoImg = document.querySelector('.kiel-logo img');
+  const logoClone = logoImg.cloneNode(true);
+  logoClone.style.cssText = 'width:100%;height:auto;display:block;';
+  logoWrap.appendChild(logoClone);
+  header.appendChild(logoWrap);
+
+  const panelClone = panel.cloneNode(true);
+  panelClone.querySelectorAll('.chart-header, .chart-controls, .footer-icons').forEach(el=>el.remove());
+  panelClone.style.border = 'none';
+  panelClone.style.borderRadius = '0';
+  panelClone.style.boxShadow = 'none';
+  panelClone.style.transform = 'none';
+  panelClone.style.width = EXPORT_W + 'px';
+  panelClone.style.height = 'auto';
+  panelClone.style.overflow = 'visible';
+
+  const panelRect = panel.getBoundingClientRect();
+  const scale = EXPORT_W / panelRect.width;
+
+  /* .bar-body is flex:1 and #bar-scroll clips the ranking to the card. The
+     export has neither constraint: let the rasterized SVGs define the height,
+     and open the scroller up so a long ranking comes out whole instead of
+     being cut off at the on-screen scroll position. */
+  const clonedBody = panelClone.querySelector('.bar-body');
+  clonedBody.style.flex = 'none';
+  clonedBody.style.height = 'auto';
+  const clonedScroll = panelClone.querySelector('#bar-scroll');
+  clonedScroll.style.overflow = 'visible';
+  clonedScroll.style.flex = 'none';
+  clonedScroll.style.height = 'auto';
+  const clonedEmpty = panelClone.querySelector('.empty-note');
+  if (clonedEmpty) clonedEmpty.style.position = 'static';
+
+  /* On screen .chart-footer is an absolutely-positioned overlay pinned to the
+     bottom of the card, which in an export sized to the FULL ranking would
+     drop it on top of the last bars. With the icon buttons gone, only the
+     legend is left in it, so it is unpinned and flows as an ordinary row
+     under the plot — and its type is scaled up with the rest of the export. */
+  const clonedFooter = panelClone.querySelector('.chart-footer');
+  if (clonedFooter) {
+    const clonedLegend = clonedFooter.querySelector('.bar-legend');
+    if (clonedLegend && clonedLegend.style.display !== 'none') {
+      clonedFooter.style.position = 'static';
+      clonedFooter.style.padding = '4px 22px 10px';
+      clonedLegend.style.background = 'none';
+      clonedLegend.style.padding = '0';
+      clonedLegend.style.gap = Math.round(EXPORT_STYLE.legendFontSize * 0.9) + 'px';
+      clonedLegend.style.fontSize = EXPORT_STYLE.legendFontSize + 'px';
+      clonedLegend.querySelectorAll('.legend-swatch').forEach(sw => {
+        sw.style.width = EXPORT_STYLE.legendSwatch + 'px';
+        sw.style.height = EXPORT_STYLE.legendSwatch + 'px';
+      });
+    } else {
+      clonedFooter.remove();
+    }
+  }
+
+  const panelWrap = document.createElement('div');
+  panelWrap.style.cssText = `position:relative;width:${EXPORT_W}px;overflow:visible;background:#f6f1e7;padding-bottom:8px;`;
+  panelWrap.appendChild(panelClone);
+
+  const footer = document.createElement('div');
+  footer.style.cssText = `padding:${EXPORT_STYLE.footerPadding};font-size:${EXPORT_STYLE.footerFontSize}px;line-height:1.5;border-top:1px solid #ddd6c8;`;
+  footer.innerHTML = `<strong>Data source:</strong> Kiel Institute for the World Economy – ${RELEASE_LABEL}`;
+
+  card.appendChild(header);
+  card.appendChild(panelWrap);
+  card.appendChild(footer);
+  document.body.appendChild(card);
+
+  try{
+    const clonedSvgs = panelWrap.querySelectorAll('svg');
+    for(const svg of clonedSvgs){
+      const liveSvg = svg.id ? panel.querySelector('#'+CSS.escape(svg.id)) : null;
+      if(!liveSvg) continue;
+      /* The bar SVG can be taller than its scroller, so its own attributes —
+         not its clipped on-screen box — define the export size. */
+      const w = liveSvg.clientWidth || liveSvg.getBoundingClientRect().width;
+      const h = Number(liveSvg.getAttribute('height')) || liveSvg.getBoundingClientRect().height;
+      if(w < 1 || h < 1) continue;
+      const targetW = w*scale, targetH = h*scale;
+      try{
+        const {img} = await svgToPngImage(liveSvg, targetW, targetH);
+        img.style.cssText = svg.getAttribute('style') || '';
+        img.style.width = Math.round(targetW) + 'px';
+        img.style.height = Math.round(targetH) + 'px';
+        img.style.display = 'block';
+        if(svg.getAttribute('class')) img.className = svg.getAttribute('class');
+        svg.replaceWith(img);
+      }catch(e){ /* leave the original svg if rasterizing fails */ }
+    }
+
+    const canvas = await html2canvas(card, {backgroundColor:'#f6f1e7', scale:EXPORT_STYLE.pixelRatio, useCORS:true});
+    await new Promise((resolve,reject)=>{
+      canvas.toBlob(async blob=>{
+        if(!blob){ reject(new Error('toBlob failed')); return; }
+        try{
+          await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+          resolve();
+        }catch(err){
+          try{
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `${METRIC.fileStem}.png`; a.click();
+            URL.revokeObjectURL(url);
+            resolve();
+          }catch(e2){ reject(e2); }
+        }
+      }, 'image/png');
+    });
+    showCopyToast('Diagram image copied!');
+  }catch(err){
+    showCopyToast('Could not copy image');
+  }finally{
+    document.body.removeChild(card);
+  }
+}
+
+document.getElementById('opt-image').addEventListener('click', () => {
+  document.getElementById('share-dropdown').classList.remove('open');
+  document.getElementById('donor-dropdown').classList.remove('open');
+  document.getElementById('info-overlay').classList.remove('open');
+  document.getElementById('info-modal').classList.remove('open');
+  copyChartAsImage();
+});
+
+/* ════════════════════════════════════
+   INFO MODAL
+════════════════════════════════════ */
+(function(){
+  const overlay = document.getElementById('info-overlay');
+  const modal = document.getElementById('info-modal');
+  const bodyEl = document.getElementById('info-body');
+
+  function openInfoModal(){
+    const shown = DONOR_DATA.filter(d => activeDonors.has(d.label))
+      .slice().sort(byBarLength);
+    let html = '';
+    html += `<div class="info-tag-row">
+      <span class="info-tag">${METRIC.seriesLabel}</span>
+      <span class="info-tag">${shown.length} donor${shown.length === 1 ? '' : 's'} shown</span>
+      ${PERIOD_LABEL ? `<span class="info-tag">${PERIOD_LABEL}</span>` : ''}
+    </div>`;
+    const aidPhrase = METRIC.key === 'military'
+      ? 'bilateral military aid allocations'
+      : 'bilateral government-to-government aid allocations (military, financial and humanitarian)';
+    html += `<p><strong>${METRIC.title}</strong> ranks the donors tracked by the Ukraine Support Tracker by their cumulative ${aidPhrase} to Ukraine, in € billion.</p>`;
+    html += `<p class="info-def"><strong>EU Institutions</strong> covers aid provided by the European Union's own bodies, financed from the EU budget and joint instruments such as macro-financial assistance, the Ukraine Facility, and the European Peace Facility.</p>`;
+    html += `<p class="info-def"><strong>EU Members</strong> sums the bilateral aid of the EU member states; <strong>Continental Europe</strong> adds the European donors outside the bloc (United Kingdom, Norway, Switzerland, Iceland).</p>`;
+    html += `<p>Does not include private donations, support for refugees outside of Ukraine, or aid by international organizations. Values are in current euros.</p>`;
+    html += `<div class="info-source"><strong>Data source:</strong> Kiel Institute for the World Economy – ${RELEASE_LABEL}</div>`;
+    bodyEl.innerHTML = html;
+    overlay.classList.add('open');
+    modal.classList.add('open');
+  }
+  function closeInfoModal(){
+    overlay.classList.remove('open');
+    modal.classList.remove('open');
+  }
+  document.getElementById('info-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    if(modal.classList.contains('open')) closeInfoModal(); else openInfoModal();
+  });
+  overlay.addEventListener('click', closeInfoModal);
+  document.getElementById('info-close').addEventListener('click', closeInfoModal);
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && modal.classList.contains('open')) closeInfoModal();
+  });
+})();
+
+/* ════════════════════════════════════
+   RESPONSIVE REFLOW
+
+   Same contract as the other cards: the card fills 100% of the iframe in both
+   axes, re-renders on every size change so the SVGs are drawn at real pixel
+   dimensions rather than being zoomed, and posts a height HINT to an embedder
+   that opts in to auto-sizing. The hint keeps the original 565:496 card
+   proportions, so this row lines up with the ones above and below it.
+════════════════════════════════════ */
+(function setupResponsiveReflow(){
+  const ASPECT = 496 / 565;      // original card proportions
+  const MIN_H = 360, MAX_H = 900;
+  const wrap = document.getElementById('explorer-wrap');
+  if(!wrap) return;
+
+  let lastSent = 0;
+  function suggestHeight(){
+    if(window.parent === window) return;
+    const w = wrap.clientWidth;
+    if(!w) return;
+    const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)));
+    if(h === lastSent) return;        // avoid a resize<->postMessage feedback loop
+    lastSent = h;
+    window.parent.postMessage({type: METRIC.msgType, height:h}, '*');
+  }
+
+  function onResize(){
+    if(typeof renderChart === 'function' && DONOR_DATA.length) renderChart();
+    suggestHeight();
+  }
+
+  if(typeof ResizeObserver !== 'undefined'){
+    new ResizeObserver(onResize).observe(wrap);
+  } else {
+    window.addEventListener('resize', onResize);
+  }
+  suggestHeight();
+})();
+</script>
+</body>
+</html>

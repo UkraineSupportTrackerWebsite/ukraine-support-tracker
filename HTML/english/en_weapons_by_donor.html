@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ukraine Support Tracker – Weapons Allocated by Donor Country</title>
+  <style>
+    :root {
+      --font: Arial, sans-serif;
+      --font-serif: Arial, sans-serif;
+      --black: #1a1a1a;
+      --mid: #6b6b6b;
+      --border: #d0d0d0;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
+
+    /* Fluid: the card fills whatever box the embed gives it, in BOTH axes, so
+       no leftover margin can ever appear around it. */
+    html, body { height: 100%; }
+
+    .explorer-scale-container {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
+      background: #f6f1e7;
+    }
+
+    .explorer-wrap {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      border: 1px solid #ddd6c8;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #f6f1e7;
+      /* No drop shadow here: the card fills the whole iframe viewport, so the
+         shadow had nowhere to fall and only smudged grey into the rounded
+         corner cut-outs. The shadow now lives on the <iframe> in en_index.html. */
+      position: relative;
+    }
+
+    /* chart title area */
+    .chart-header {
+      padding: 0.45rem 1.1rem 0.6rem;
+      padding-right: 160px;
+      border-bottom: 1px solid #ddd6c8;
+      position: relative;
+      flex-shrink: 0;
+      background: #f6f1e7;
+      min-height: 76.5px;
+      box-sizing: border-box;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .chart-title {
+      font-family: var(--font-serif);
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.25;
+      color: #174abb;
+      margin-bottom: 0rem;
+    }
+    .kiel-logo {
+      position: absolute;
+      top: 50%; right: 17px;
+      transform: translateY(-50%);
+      line-height: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+    }
+    .kiel-logo img { height: 40px; width: auto; display: block; }
+
+    /* controls bar */
+    .chart-controls {
+      flex-shrink: 0; padding: 0.55rem 0.55rem 0.35rem;
+      background: #f6f2e8;
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.72rem; color: var(--mid);
+    }
+
+    /* custom dropdown (shared visual language with data explorer) */
+    .sort-custom { position: relative; flex: none; }
+    .sort-custom-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
+      font-family: var(--font); font-size: 0.98rem;
+      border: 1px solid var(--border); border-radius: 3px;
+      padding: 0.46rem 0.86rem;
+      background: #f6f1e7; color: var(--black);
+      cursor: pointer; white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-btn:hover { background: #ede8de; }
+    .sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
+    .sort-custom-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 3px); left: 0;
+      min-width: 190px;
+      background: #f6f1e7;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 100;
+      overflow: hidden;
+    }
+    .sort-custom-dropdown.open { display: block; }
+    .sort-custom-option {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.3rem 0.6rem;
+      font-family: var(--font); font-size: 0.82rem;
+      color: var(--black); cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-option:hover { background: #ede8de; }
+    .sort-custom-option.active { font-weight: 600; background: #d6e4f5; }
+
+    /* ── TABLE (matches Data Explorer's Table view) ─────────── */
+    .tbl-unit-label {
+      padding: 0.35rem 1.1rem 0.2rem;
+      font-size: 0.72rem;
+      color: var(--mid);
+      border-bottom: 1px solid #ddd6c8;
+      flex-shrink: 0;
+    }
+    .tbl-unit-label strong { color: var(--black); }
+    .tbl-scroll { flex: 1; overflow-y: auto; overflow-x: auto; padding-bottom: 8px; }
+    .data-table {
+      width: max-content; min-width: 100%; border-collapse: collapse;
+      font-size: 0.78rem; font-family: var(--font);
+    }
+    .data-table thead { position: sticky; top: 0; z-index: 5; background: #f6f1e7; }
+    .data-table th {
+      padding: 0.45rem 0.55rem;
+      text-align: left; font-weight: 500; font-size: 0.72rem; color: var(--mid);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .data-table th.num { text-align: right; }
+    .data-table th.sortable { cursor: pointer; user-select: none; }
+    .data-table th.sortable:hover { color: var(--black); }
+    .sort-arrow { margin-left: 2px; opacity: 0.5; font-size: 0.62rem; }
+    .data-table td {
+      padding: 0.38rem 0.55rem;
+      border-bottom: 1px solid #ddd6c8;
+      color: var(--black);
+      vertical-align: top;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: #ede8de; }
+    .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .data-table td.weapons-list { white-space: nowrap; }
+    /* Push any leftover table width into the last column so the slack no longer
+       shows up as a gap in front of "Monetary Value", and use that space as a
+       separator between "Monetary Value" and "List of Weapons" instead. */
+    .data-table th:last-child, .data-table td.weapons-list { width: 100%; padding-left: 72px; }
+    /* Same 72px separator in front of the "Monetary Value" column, so the two
+       gaps flanking it match. */
+    .data-table th:nth-child(3), .data-table td:nth-child(3) { padding-left: 72px; }
+
+    .tbl-scroll { scrollbar-width: thin; scrollbar-color: #ddd #f6f1e7; background: #f6f1e7; }
+    .tbl-scroll::-webkit-scrollbar { width: 5px; height: 5px; background: #f6f1e7; }
+    .tbl-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    .tbl-scroll::-webkit-scrollbar-track { background: #f6f1e7; }
+    .tbl-scroll::-webkit-scrollbar-corner { background: #f6f1e7; }
+
+    /* footer */
+    .chart-footer {
+      flex-shrink: 0;
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 0.5rem 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 1rem;
+      z-index: 20;
+      pointer-events: none;
+    }
+    .footer-icons {
+      position: relative;
+      display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
+      pointer-events: auto;
+    }
+    .footer-icons::before {
+      content: '';
+      position: absolute;
+      top: -6px; bottom: -6px; right: -8px; left: -40px;
+      z-index: -1;
+      background: rgba(246,241,231,0.35);
+      backdrop-filter: blur(1px);
+      -webkit-backdrop-filter: blur(1.5px);
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
+      mask-image: linear-gradient(to right, transparent, #000 32px);
+    }
+    .footer-icon-btn {
+      width: 30px; height: 30px; border-radius: 3px;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    .footer-icon-btn:hover { background: #ede8de; color: var(--black); }
+    .footer-icon-btn svg { width: 14px; height: 14px; }
+
+    /* share dropdown */
+    .share-wrap { position: relative; }
+    .share-dropdown {
+      display: none; position: absolute; right: 0; bottom: 110%;
+      background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
+    }
+    .share-dropdown.open { display: block; }
+    .share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
+    .share-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
+    }
+    .share-option:hover { background: #ede8de; }
+    .share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
+
+    /* copy toast */
+    #copy-toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: #222; color: #fff; font-size: 0.76rem;
+      padding: 0.45rem 1rem; border-radius: 4px;
+      opacity: 0; transition: opacity 0.25s; pointer-events: none;
+      z-index: 9999; font-family: var(--font);
+    }
+    #copy-toast.show { opacity: 1; }
+
+    /* ── Info Modal ── */
+    #info-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.32); z-index: 3000;
+    }
+    #info-overlay.open { display: block; }
+    #info-modal {
+      display: none; position: fixed; z-index: 3001;
+      left: 50%; top: 50%; transform: translate(-50%,-50%);
+      background: #f6f1e7; border: 1px solid #ddd6c8;
+      border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+      width: 500px; max-width: calc(100vw - 3rem);
+      max-height: calc(100vh - 4rem);
+      font-family: var(--font);
+    }
+    #info-modal.open { display: block; }
+    #info-modal-inner { padding: 1rem; max-height: calc(100vh - 4rem); overflow-y: auto; }
+    #info-modal-inner::-webkit-scrollbar { width: 5px; }
+    #info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    #info-close {
+      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    #info-close:hover { background: #ede8de; color: var(--black); }
+    #info-close svg { width: 13px; height: 13px; }
+    #info-eyebrow {
+      font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #ff6b00;
+      line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
+    }
+    #info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
+    #info-body p { margin: 0 0 0.7rem; }
+    #info-body p:last-child { margin-bottom: 0; }
+    #info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    #info-body .info-tag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      color: #fff; background: #688fdc;
+      border: 1px solid #688fdc; border-radius: 3px;
+      padding: 0.2rem 0.55rem;
+    }
+    #info-body .info-source {
+      margin-top: 1rem; padding-top: 0.7rem;
+      border-top: 1px solid #ddd6c8;
+      font-size: 0.75rem; color: var(--mid); line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="explorer-scale-container" id="explorer-scale-container">
+<div class="explorer-wrap" id="explorer-wrap">
+
+  <div class="chart-header">
+    <div class="chart-title" id="chart-title-text">Military Equipment Allocated to Ukraine, by Type</div>
+    <div class="kiel-logo">
+      <img src="../../assets/Kiel Institut Logo.svg" alt="Kiel Institut" />
+    </div>
+  </div>
+
+  <div class="chart-controls">
+    <div class="sort-custom" id="weapon-cat-custom">
+      <button class="sort-custom-btn" id="weapon-cat-btn" type="button">
+        <span id="weapon-cat-label">Howitzers</span>
+        <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <div class="sort-custom-dropdown" id="weapon-cat-dropdown">
+        <div class="sort-custom-option" data-value="Air Defense">Air Defense Systems</div>
+        <div class="sort-custom-option" data-value="Tanks">Tanks</div>
+        <div class="sort-custom-option" data-value="IFV">Infantry Fighting Vehicles</div>
+        <div class="sort-custom-option active" data-value="Howitzers">Howitzers</div>
+        <div class="sort-custom-option" data-value="MLRS">Multiple Launch Rocket Systems</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tbl-scroll">
+    <table class="data-table" id="weapon-table">
+      <thead>
+        <tr>
+          <th class="sortable" data-col="donor" style="min-width:110px">Countries <span class="sort-arrow">↕</span></th>
+          <th class="num sortable" data-col="count" style="min-width:100px"><span id="count-header-label">Number of Weapons</span> <span class="sort-arrow">↕</span></th>
+          <th class="num sortable" data-col="value_eur" style="min-width:100px">Monetary Value <span class="sort-arrow">↕</span></th>
+          <th style="min-width:220px">List of Weapons</th>
+        </tr>
+      </thead>
+      <tbody id="weapon-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="chart-footer">
+    <div class="footer-icons">
+      <button class="footer-icon-btn" id="info-btn" title="About this data">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><line x1="8" y1="7.1" x2="8" y2="11.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="4.85" r="0.95" fill="currentColor"/></svg>
+      </button>
+      <button class="footer-icon-btn" id="dl-btn" title="Download data">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 4 3-4M2 13h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </button>
+      <div class="share-wrap">
+        <button class="footer-icon-btn" id="share-btn" title="Share">
+          <svg viewBox="0 0 16 16" fill="none"><circle cx="13" cy="3" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="3" cy="8" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="13" cy="13" r="1.6" stroke="currentColor" stroke-width="1.3"/><line x1="4.6" y1="7.2" x2="11.4" y2="4" stroke="currentColor" stroke-width="1.2"/><line x1="4.6" y1="8.8" x2="11.4" y2="12" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <div class="share-dropdown" id="share-dropdown">
+          <div class="share-dropdown-title">Share</div>
+          <div class="share-option" id="opt-image">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="7" r="1.2" stroke="currentColor" stroke-width="1.1"/><polyline points="1,11 5,7.5 8,10 11,7 15,11" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+            Copy table as image
+          </div>
+          <div class="share-option" id="opt-link">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5a3.5 3.5 0 0 0 4.95 0l2-2a3.5 3.5 0 0 0-4.95-4.95l-1 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M9.5 6.5a3.5 3.5 0 0 0-4.95 0l-2 2a3.5 3.5 0 0 0 4.95 4.95l1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Copy link to table
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="copy-toast">Link copied!</div>
+
+  <!-- ── Info Modal ── -->
+  <div id="info-overlay"></div>
+  <div id="info-modal">
+    <button id="info-close" title="Close">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div id="info-modal-inner">
+      <div id="info-eyebrow">What this view shows</div>
+      <div id="info-body"></div>
+    </div>
+  </div>
+
+
+</div><!-- /.explorer-wrap -->
+</div><!-- /.explorer-scale-container -->
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="../../assets/data-loader.js"></script>
+<script>
+/* ════════════════════════════════════
+   DATA
+   Loaded at runtime from data/weapons.csv (see ../../assets/data-loader.js).
+   Aggregated from the main dataset joined against the Price List sheet
+   (item -> category + unit price). The CSV's "weapons_list" column packs
+   each row's individual weapon models as "Name (count)", separated by "; ".
+════════════════════════════════════ */
+let WEAPON_ROWS = [];
+let RELEASE_LABEL = 'Ukraine Support Tracker, Release 30 (07/2026)';
+
+function parseWeaponsList(text){
+  return String(text).split(';').map(s => s.trim()).filter(Boolean).map(entry => {
+    const m = entry.match(/^(.*)\s\((\d+)\)$/);
+    return m ? { name: m[1], count: Number(m[2]) } : { name: entry, count: 0 };
+  });
+}
+
+function weaponRowsFromCSV(rows){
+  return rows.map(r => ({
+    donor: r.donor,
+    category: r.category,
+    count: Number(r.number_of_weapons),
+    value_eur: Number(r.monetary_value_eur),
+    weapons: parseWeaponsList(r.weapons_list)
+  }));
+}
+
+const CATEGORY_INFO = {
+  "Air Defense": { title: "Air Defense Systems Allocated to Ukraine, by Donor Country", noun: "air defense systems", countLabel: "Number of Air Defense Systems" },
+  "Tanks":       { title: "Tanks Allocated to Ukraine, by Donor Country", noun: "tanks", countLabel: "Number of Tanks" },
+  "IFV":         { title: "Infantry Fighting Vehicles Allocated to Ukraine, by Donor Country", noun: "infantry fighting vehicles", countLabel: "Number of Infantry Fighting Vehicles" },
+  "Howitzers":   { title: "Howitzers Allocated to Ukraine, by Donor Country", noun: "howitzers (152/155mm)", countLabel: "Number of Howitzers" },
+  "MLRS":        { title: "Multiple Launch Rocket Systems Allocated to Ukraine, by Donor Country", noun: "multiple launch rocket systems", countLabel: "Number of MLRS" }
+};
+
+function formatWeaponsList(weapons){
+  return weapons.map(w => `${w.name} (${w.count})`).join(', ');
+}
+
+function formatValueEUR(v){
+  if(!v) return '€0 mln';
+  const mln = v / 1e6;
+  if(mln >= 1000) return `€${(mln/1000).toFixed(2)} bn`;
+  if(mln < 10) return `€${mln.toFixed(1)} mln`;
+  return `€${mln.toFixed(0)} mln`;
+}
+
+let currentCategory = 'Howitzers';
+const tblSort = { col: 'count', dir: -1 };
+
+function renderTable(category){
+  if (category) currentCategory = category;
+  document.getElementById('count-header-label').textContent = CATEGORY_INFO[currentCategory].countLabel;
+  const rows = WEAPON_ROWS
+    .filter(r => r.category === currentCategory)
+    .sort((a,b) => {
+      const va = a[tblSort.col];
+      const vb = b[tblSort.col];
+      if (typeof va === 'string') return tblSort.dir * va.localeCompare(vb);
+      return tblSort.dir * (va - vb);
+    });
+
+  const tbody = document.getElementById('weapon-tbody');
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.donor}</td>
+      <td class="num">${r.count.toLocaleString('en-US')}</td>
+      <td class="num">${formatValueEUR(r.value_eur)}</td>
+      <td class="weapons-list">${formatWeaponsList(r.weapons)}</td>
+    </tr>
+  `).join('');
+
+  document.querySelectorAll('#weapon-table th .sort-arrow').forEach(s=>s.textContent='↕');
+  document.querySelectorAll('#weapon-table th.sortable').forEach(th => {
+    if (th.dataset.col === tblSort.col) th.querySelector('.sort-arrow').textContent = tblSort.dir===-1?'↓':'↑';
+    th.onclick = () => {
+      const col = th.dataset.col;
+      if (tblSort.col === col) tblSort.dir *= -1;
+      else { tblSort.col = col; tblSort.dir = -1; }
+      renderTable();
+    };
+  });
+}
+
+(function(){
+  const btn = document.getElementById('weapon-cat-btn');
+  const label = document.getElementById('weapon-cat-label');
+  const dropdown = document.getElementById('weapon-cat-dropdown');
+  const options = dropdown.querySelectorAll('.sort-custom-option');
+
+  btn.addEventListener('click', e => { e.stopPropagation(); dropdown.classList.toggle('open'); });
+  document.addEventListener('click', () => dropdown.classList.remove('open'));
+  dropdown.addEventListener('click', e => e.stopPropagation());
+
+  options.forEach(opt => opt.addEventListener('click', () => {
+    options.forEach(o => o.classList.remove('active'));
+    opt.classList.add('active');
+    label.textContent = opt.textContent;
+    dropdown.classList.remove('open');
+    renderTable(opt.dataset.value);
+  }));
+
+})();
+
+async function init(){
+  const rows = await USTData.fetchCSV('weapons.csv');
+  WEAPON_ROWS = weaponRowsFromCSV(rows);
+  RELEASE_LABEL = await USTData.fetchReleaseLabel(RELEASE_LABEL);
+  renderTable('Howitzers');
+}
+init();
+
+/* ════════════════════════════════════
+   DOWNLOAD (XLSX export of the currently visible category)
+════════════════════════════════════ */
+let kielLogoPng = null;
+async function getKielLogoPng(){
+  if (kielLogoPng) return kielLogoPng;
+  const svgText = await fetch('../../assets/Kiel Institut Logo.svg').then(r => r.text());
+  const svgBlob = new Blob([svgText], {type:'image/svg+xml'});
+  const svgUrl  = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve; img.onerror = reject; img.src = svgUrl;
+  });
+  const scale = 3;
+  const canvas = document.createElement('canvas');
+  canvas.width  = img.naturalWidth  * scale;
+  canvas.height = img.naturalHeight * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  URL.revokeObjectURL(svgUrl);
+  kielLogoPng = {
+    dataUrl: canvas.toDataURL('image/png'),
+    width: img.naturalWidth, height: img.naturalHeight
+  };
+  return kielLogoPng;
+}
+
+function rowsForCategory(category){
+  const sortCol = category === currentCategory ? tblSort.col : 'count';
+  const sortDir = category === currentCategory ? tblSort.dir : -1;
+  return WEAPON_ROWS
+    .filter(r => r.category === category)
+    .sort((a,b) => {
+      const va = a[sortCol];
+      const vb = b[sortCol];
+      if (typeof va === 'string') return sortDir * va.localeCompare(vb);
+      return sortDir * (va - vb);
+    });
+}
+
+async function addWeaponSheet(wb, category){
+  const rows = rowsForCategory(category);
+  const info = CATEGORY_INFO[category];
+  const ws = wb.addWorksheet(info.title.slice(0, 31), { views: [{ showGridLines: false }] });
+
+  const leftPad = 2, topPad = 2;
+  const dataColCount = 4;
+  const firstCol = leftPad + 1;
+  const lastCol  = leftPad + dataColCount;
+  const logoCol  = lastCol + 1;
+
+  for (let i = 0; i < topPad; i++) ws.addRow([]);
+
+  ws.mergeCells(topPad + 1, firstCol, topPad + 1, lastCol);
+  ws.mergeCells(topPad + 2, firstCol, topPad + 2, lastCol);
+  ws.mergeCells(topPad + 3, firstCol, topPad + 3, lastCol);
+
+  const titleCell = ws.getCell(topPad + 1, firstCol);
+  titleCell.value = `Ukraine Support Tracker — ${info.title}`;
+  titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFF6B00' } };
+  ws.getRow(topPad + 1).height = 26;
+
+  const releaseCell = ws.getCell(topPad + 2, firstCol);
+  releaseCell.value = RELEASE_LABEL;
+  releaseCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF555555' } };
+  ws.getRow(topPad + 2).height = 15;
+
+  const sourceCell = ws.getCell(topPad + 3, firstCol);
+  sourceCell.value = 'Data Source: Kiel Institute for the World Economy — Ukraine Support Tracker (kiel-institute.de/ukraine)';
+  sourceCell.font = { name: 'Calibri', size: 8.5, italic: true, color: { argb: 'FF888888' } };
+  ws.getRow(topPad + 3).height = 14;
+  ws.addRow([]);
+
+  const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Country', info.countLabel, 'Monetary Value (€)', 'List of Weapons']);
+  headerRow.eachCell({ includeEmpty: false }, cell => {
+    cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3A6DC5' } };
+    cell.alignment = { vertical: 'middle' };
+  });
+  headerRow.height = 18;
+
+  rows.forEach(r => {
+    const dataRow = ws.addRow([...Array(leftPad).fill(null), r.donor, r.count, r.value_eur, formatWeaponsList(r.weapons)]);
+    dataRow.font = { name: 'Calibri', size: 10 };
+  });
+
+  ws.columns = [
+    ...Array(leftPad).fill({ width: 3 }),
+    { width: 22 }, { width: 18 }, { width: 18 }, { width: 60 }
+  ];
+
+  try {
+    const logo = await getKielLogoPng();
+    const imgId = wb.addImage({ base64: logo.dataUrl, extension: 'png' });
+    const logoDisplayHeight = 64;
+    const logoDisplayWidth  = logoDisplayHeight * (logo.width / logo.height);
+    ws.addImage(imgId, {
+      tl: { col: logoCol - 1 + 0.05, row: topPad + 0.05 },
+      ext: { width: logoDisplayWidth, height: logoDisplayHeight },
+      editAs: 'absolute'
+    });
+  } catch (e) {
+    console.warn('Could not embed Kiel Institute logo in export:', e);
+  }
+
+  return ws;
+}
+
+async function downloadWorkbook(wb, filename){
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ════════════════════════════════════
+   DOWNLOAD (all equipment types, one sheet each, regardless of the
+   category currently shown on screen)
+════════════════════════════════════ */
+document.getElementById('dl-btn').addEventListener('click', async () => {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Kiel Institute for the World Economy — Ukraine Support Tracker';
+  wb.created = new Date();
+  for (const category of Object.keys(CATEGORY_INFO)) {
+    await addWeaponSheet(wb, category);
+  }
+  await downloadWorkbook(wb, 'Ukraine Support Tracker, Military Equipment Allocated to Ukraine, by Type.xlsx');
+});
+
+/* ════════════════════════════════════
+   SHARE (image / link)
+════════════════════════════════════ */
+(function(){
+  const shareBtn = document.getElementById('share-btn');
+  const shareDropdown = document.getElementById('share-dropdown');
+  shareBtn.addEventListener('click', e=>{ e.stopPropagation(); shareDropdown.classList.toggle('open'); });
+  document.addEventListener('click', ()=>shareDropdown.classList.remove('open'));
+  shareDropdown.addEventListener('click', e=>e.stopPropagation());
+})();
+
+function showCopyToast(msg){
+  const toast = document.getElementById('copy-toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'), 1800);
+}
+
+document.getElementById('opt-link').addEventListener('click', () => {
+  navigator.clipboard.writeText(window.location.href).catch(()=>{});
+  document.getElementById('share-dropdown').classList.remove('open');
+  showCopyToast('Link copied!');
+});
+
+/* ═════════════════════════════════════════════════════════════════════
+   IMAGE-EXPORT STYLE SETTINGS — tweak these to change the exported PNG.
+
+   All sizes are px of the export layout (the card is laid out `width` px
+   wide, then rendered at width × pixelRatio actual image pixels).
+
+   - width          : exported image width. The height grows automatically
+                      to fit however many table rows the selected weapon
+                      category has, so it is not settable directly.
+   - pixelRatio     : resolution multiplier for the final PNG (2 = retina).
+                      Changes sharpness/file size, not layout proportions.
+   - titleFontSize  : the blue title in the header.
+   - logoHeight     : Kiel logo height in the top-right corner.
+   - headerPadding  : CSS padding of the header block. The 2nd value (right
+                      padding, 360px) must stay wide enough that the title
+                      doesn't run underneath the logo.
+   - footerFontSize / footerPadding : the "Data source: …" note at the bottom.
+   ═════════════════════════════════════════════════════════════════════ */
+const EXPORT_STYLE = {
+  width:          1600,
+  pixelRatio:     2,
+  titleFontSize:  47,
+  logoHeight:     100,
+  headerPadding:  '18px 360px 14px 22px',
+  colHeaderFontSize: 12,
+  footerFontSize: 26,
+  footerPadding:  '16px 22px',
+};
+
+async function copyChartAsImage(){
+  const panel = document.getElementById('explorer-wrap');
+  if(!panel) return;
+
+  const EXPORT_W = EXPORT_STYLE.width;
+
+  const card = document.createElement('div');
+  card.style.cssText = `position:fixed;left:-99999px;top:0;width:${EXPORT_W}px;background:#f6f1e7;font-family:${getComputedStyle(document.body).fontFamily};color:#1a1a1a;`;
+
+  const header = document.createElement('div');
+  const headerMinHeight = EXPORT_STYLE.logoHeight + 36;
+  header.style.cssText = `position:relative;padding:${EXPORT_STYLE.headerPadding};min-height:${headerMinHeight}px;border-bottom:1px solid #ddd6c8;box-sizing:border-box;background:#f6f1e7;display:flex;flex-direction:column;justify-content:center;`;
+  header.innerHTML = `
+    <div style="font-size:${EXPORT_STYLE.titleFontSize}px;font-weight:700;line-height:1.25;color:#174abb;">${document.getElementById('chart-title-text').textContent}</div>
+  `;
+  const logoWrap = document.createElement('div');
+  logoWrap.style.cssText = `position:absolute;top:50%;right:18px;transform:translateY(-50%);height:${EXPORT_STYLE.logoHeight}px;display:flex;align-items:center;`;
+  const logoImg = document.querySelector('.kiel-logo img');
+  const logoClone = logoImg.cloneNode(true);
+  logoClone.style.cssText = 'height:100%;width:auto;display:block;';
+  logoWrap.appendChild(logoClone);
+  header.appendChild(logoWrap);
+
+  const panelClone = panel.cloneNode(true);
+  panelClone.querySelectorAll('.chart-header, .chart-controls, .footer-icons').forEach(el=>el.remove());
+  panelClone.querySelectorAll('.sort-arrow').forEach(el=>el.remove());
+
+  const panelWrap = document.createElement('div');
+  panelWrap.style.cssText = `position:relative;width:${EXPORT_W}px;overflow:visible;background:#f6f1e7;`;
+
+  /* The table's row count varies with the selected weapon category, so like the
+     Data Explorer's table export, lay the clone out at its natural on-screen
+     width (full row height, nothing scrolled out of view) and visually scale
+     the whole thing up to EXPORT_W with a CSS transform, then measure the
+     clone's real rendered height once attached to size panelWrap to match. */
+  const panelRect = panel.getBoundingClientRect();
+  const scale = EXPORT_W / panelRect.width;
+  panelClone.style.flex = 'none';
+  panelClone.style.width = panelRect.width + 'px';
+  panelClone.style.height = 'auto';
+  panelClone.style.overflow = 'visible';
+  panelClone.style.border = 'none';
+  panelClone.style.borderRadius = '0';
+  panelClone.style.boxShadow = 'none';
+  panelClone.style.position = 'relative';
+  panelClone.style.left = '0';
+  panelClone.style.top = '0';
+  panelClone.style.transform = `scale(${scale})`;
+  panelClone.style.transformOrigin = 'top left';
+  panelWrap.style.height = Math.round(panelRect.height * scale) + 'px';
+
+  /* .tbl-scroll clips content to whatever fit on screen via overflow-y:auto —
+     strip that in the clone so every row lays out at its natural size instead
+     of being scrolled out of view. */
+  panelClone.querySelectorAll('.tbl-scroll').forEach(el=>{
+    el.style.overflow = 'visible';
+    el.style.flex = 'none';
+    el.style.height = 'auto';
+    el.style.maxHeight = 'none';
+  });
+
+  /* The live table lets the "List of Weapons" column run off-screen and
+     scroll horizontally — there's no scrolling in a static image export, so
+     pin the table to the panel's width and let that column wrap instead of
+     being cut off at the export boundary. */
+  panelClone.querySelectorAll('.data-table').forEach(el=>{
+    el.style.width = '100%';
+  });
+  panelClone.querySelectorAll('td.weapons-list').forEach(el=>{
+    el.style.whiteSpace = 'normal';
+  });
+  panelClone.querySelectorAll('.data-table th').forEach(el=>{
+    el.style.fontSize = EXPORT_STYLE.colHeaderFontSize + 'px';
+  });
+  panelClone.style.background = '#f6f1e7';
+  panelClone.querySelectorAll('.data-table, .data-table tr, .data-table td, .data-table th').forEach(el=>{
+    el.style.background = '#f6f1e7';
+  });
+  panelClone.querySelectorAll('.tbl-scroll').forEach(el=>{
+    let p = el.parentElement;
+    while(p && p !== panelClone){
+      p.style.flex = 'none';
+      p.style.minHeight = '0';
+      p.style.height = 'auto';
+      p = p.parentElement;
+    }
+  });
+
+  panelWrap.appendChild(panelClone);
+
+  const footer = document.createElement('div');
+  footer.style.cssText = `padding:${EXPORT_STYLE.footerPadding};font-size:${EXPORT_STYLE.footerFontSize}px;line-height:1.5;border-top:1px solid #ddd6c8;background:#f6f1e7;`;
+  footer.innerHTML = `<strong>Data source:</strong> Kiel Institute for the World Economy – ${RELEASE_LABEL}`;
+
+  card.appendChild(header);
+  card.appendChild(panelWrap);
+  card.appendChild(footer);
+  document.body.appendChild(card);
+
+  /* Now that panelClone is attached with height:auto, measure its real height
+     and resize panelWrap to match (scaled), same as the Data Explorer export. */
+  const cloneRect = panelClone.getBoundingClientRect();
+  panelWrap.style.height = Math.round(cloneRect.height) + 'px';
+
+  try{
+    const canvas = await html2canvas(card, {backgroundColor:'#f6f1e7', scale:EXPORT_STYLE.pixelRatio, useCORS:true});
+    await new Promise((resolve,reject)=>{
+      canvas.toBlob(async blob=>{
+        if(!blob){ reject(new Error('toBlob failed')); return; }
+        try{
+          await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+          resolve();
+        }catch(err){
+          try{
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'ust_weapons_by_country.png'; a.click();
+            URL.revokeObjectURL(url);
+            resolve();
+          }catch(e2){ reject(e2); }
+        }
+      }, 'image/png');
+    });
+    showCopyToast('Table image copied!');
+  }catch(err){
+    showCopyToast('Could not copy image');
+  }finally{
+    document.body.removeChild(card);
+  }
+}
+
+document.getElementById('opt-image').addEventListener('click', () => {
+  document.getElementById('share-dropdown').classList.remove('open');
+  document.getElementById('weapon-cat-dropdown').classList.remove('open');
+  document.getElementById('info-overlay').classList.remove('open');
+  document.getElementById('info-modal').classList.remove('open');
+  copyChartAsImage();
+});
+
+/* ════════════════════════════════════
+   INFO MODAL
+════════════════════════════════════ */
+(function(){
+  const overlay = document.getElementById('info-overlay');
+  const modal = document.getElementById('info-modal');
+  const bodyEl = document.getElementById('info-body');
+
+  function openInfoModal(){
+    let html = '';
+    html += `<div class="info-tag-row"><span class="info-tag">${CATEGORY_INFO[currentCategory].title.split(' Allocated')[0]}</span></div>`;
+    html += `<p>Covers in-kind military allocations of heavy weapon systems to Ukraine by donor country, tracked from January 24, 2022 to April 30, 2026. Excludes ammunition, spare parts, and undisclosed sub-components.</p>`;
+    html += `<p>Values are in euros, estimated from unit price lists and reported package values.</p>`;
+    html += `<div class="info-source"><strong>Data source:</strong> Kiel Institute for the World Economy – ${RELEASE_LABEL}</div>`;
+    bodyEl.innerHTML = html;
+    overlay.classList.add('open');
+    modal.classList.add('open');
+  }
+  function closeInfoModal(){
+    overlay.classList.remove('open');
+    modal.classList.remove('open');
+  }
+  document.getElementById('info-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    if(modal.classList.contains('open')) closeInfoModal(); else openInfoModal();
+  });
+  overlay.addEventListener('click', closeInfoModal);
+  document.getElementById('info-close').addEventListener('click', closeInfoModal);
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && modal.classList.contains('open')) closeInfoModal();
+  });
+})();
+
+/* ════════════════════════════════════
+   RESPONSIVE REFLOW
+
+   The card fills 100% of the iframe in both axes (see .explorer-wrap), so it
+   can never leave a margin no matter what size the embed gives it.
+
+   Unlike the chart pages there is nothing to re-render on resize: the table
+   is laid out by the browser (.tbl-scroll is flex:1 with its own scrolling,
+   and .data-table is min-width:100%), so it reflows for free. All that
+   remains is suggesting a height to embedders who opt in to auto-sizing —
+   the page renders correctly at whatever height it is actually given.
+════════════════════════════════════ */
+(function setupResponsiveReflow(){
+  const ASPECT = 496 / 565;      // original card proportions
+  const MIN_H = 360, MAX_H = 900;
+  const wrap = document.getElementById('explorer-wrap');
+  if(!wrap) return;
+
+  let lastSent = 0;
+  function suggestHeight(){
+    if(window.parent === window) return;
+    const w = wrap.clientWidth;
+    if(!w) return;
+    const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)));
+    if(h === lastSent) return;        // avoid a resize<->postMessage feedback loop
+    lastSent = h;
+    window.parent.postMessage({type:'ust-weapons-height', height:h}, '*');
+  }
+
+  if(typeof ResizeObserver !== 'undefined'){
+    new ResizeObserver(suggestHeight).observe(wrap);
+  } else {
+    window.addEventListener('resize', suggestHeight);
+  }
+  suggestHeight();
+})();
+</script>
+</body>
+</html>

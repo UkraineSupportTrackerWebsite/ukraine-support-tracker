@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ukraine Support Tracker – Gesamtzuweisungen an die Ukraine, nach Region</title>
+  <style>
+    :root {
+      --font: Arial, sans-serif;
+      --font-serif: Arial, sans-serif;
+      --black: #1a1a1a;
+      --mid: #6b6b6b;
+      --border: #d0d0d0;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
+
+    /* Fluid: the card fills whatever box the embed gives it, in BOTH axes, so
+       no leftover margin can ever appear around it. */
+    html, body { height: 100%; }
+
+    .explorer-scale-container {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
+      background: #f6f1e7;
+    }
+
+    .explorer-wrap {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      border: 1px solid #ddd6c8;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #f6f1e7;
+      /* No drop shadow here: the card fills the whole iframe viewport, so the
+         shadow had nowhere to fall and only smudged grey into the rounded
+         corner cut-outs. The shadow now lives on the <iframe> in de_index.html. */
+      position: relative;
+    }
+
+    .chart-header {
+      padding: 0.9rem 1.1rem 0.7rem;
+      padding-right: 185px;
+      border-bottom: 1px solid #ddd6c8;
+      position: relative;
+      flex-shrink: 0;
+      background: #f6f1e7;
+      min-height: 76.5px;
+      box-sizing: border-box;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .chart-title {
+      font-family: var(--font-serif);
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.25;
+      color: #174abb;
+      margin-bottom: 0rem;
+    }
+    .kiel-logo {
+      position: absolute;
+      top: 50%; right: 17px;
+      transform: translateY(-50%);
+      line-height: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+    }
+    .kiel-logo img { height: 40px; width: auto; display: block; }
+
+    /* ── CONTROLS BAR ────────────────────────────────────────────
+       Same markup, metrics and behaviour as the category selector in
+       de_total_allocations.html — the two cards sit next to each other, so the
+       bar's height (0.98rem button at line-height 1.15 inside 0.55rem padding
+       = 46.06px) is also what renderChart()'s pad.t is derived from. Keep the
+       two in sync; line-height is pinned here rather than left to the UA sheet,
+       which resets buttons to `normal` and would tie the height to Arial's
+       metrics.
+    ───────────────────────────────────────────────────────────── */
+    .chart-controls {
+      flex-shrink: 0; padding: 0.55rem;
+      background: #f6f2e8;
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.72rem; color: var(--mid);
+    }
+
+    /* custom dropdown (shared visual language with data explorer) */
+    .sort-custom { position: relative; flex: none; }
+    .sort-custom-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
+      font-family: var(--font); font-size: 0.98rem; line-height: 1.15;
+      border: 1px solid var(--border); border-radius: 3px;
+      padding: 0.46rem 0.86rem;
+      background: #f6f1e7; color: var(--black);
+      cursor: pointer; white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-btn:hover { background: #ede8de; }
+    .sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
+    .sort-custom-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 3px); left: 0;
+      min-width: 190px;
+      background: #f6f1e7;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 100;
+      overflow: hidden;
+    }
+    .sort-custom-dropdown.open { display: block; }
+    .sort-custom-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.4rem 0.7rem;
+      font-family: var(--font); font-size: 0.82rem;
+      color: var(--black); cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-option:hover { background: #ede8de; }
+    .sort-custom-option input[type="checkbox"] {
+      appearance: none; -webkit-appearance: none;
+      width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
+      border: 1.5px solid #b0a898; border-radius: 2px;
+      background: #f6f1e7;
+      transition: border-color 0.1s;
+    }
+    .sort-custom-option input[type="checkbox"]:checked {
+      border-color: #ff6b00;
+      background: #ff6b00;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13'%3E%3Cpath d='M2.5 6.5l3 3 5-5' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+      background-size: 100% 100%;
+    }
+    .cat-swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── BAR CHART BODY ──────────────────────────────────────────
+       The card fills the embed box, and renderChart() re-reads this element's
+       clientWidth/clientHeight on every resize (see setupResponsiveReflow),
+       so the chart is drawn at real pixel size rather than being zoomed. The
+       element itself is unpadded — renderChart()'s pad.b is what keeps the
+       x-axis labels clear of the footer icon cluster, which floats over the
+       bottom-right of the card.
+    ─────────────────────────────────────────────────────────────── */
+    .bar-body {
+      flex: 1;
+      padding: 0rem 0rem 0rem;
+      min-height: 0;
+      position: relative;
+    }
+    #bar-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+    /* Bars carry brand region colors, two of which (orange 2.54:1, beige
+       1.60:1) sit under 3:1 against the cream surface — every bar is
+       therefore directly labeled, and all chart text stays in ink colors
+       rather than wearing its series color. */
+    .bar-rect { transition: opacity 0.12s; }
+    /* clickable: a click pins the popup so its list can be scrolled */
+    .bar-hit { cursor: pointer; }
+
+    /* ── contributor popup (follows cursor over the bars, until pinned) ── */
+    #bar-hover-popup {
+      display: none;
+      position: absolute;
+      z-index: 250;
+      background: #f6f1e7;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+      width: 205px;
+      max-height: 190px;
+      padding: 0.55rem 0;
+      font-family: var(--font);
+      /* While trailing the cursor the card must not eat pointer events, or a
+         fast sweep lands the cursor on the card and stalls the tracking. It
+         only becomes interactive once pinned, which is what makes the list
+         reachable and scrollable. */
+      pointer-events: none;
+    }
+    #bar-hover-popup.show { display: block; }
+    #bar-hover-popup.pinned {
+      pointer-events: auto;
+      border-color: #b8b0a0;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.24);
+    }
+    .bar-popup-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.15rem 0.5rem;
+      padding: 0 0.7rem 0.4rem;
+      border-bottom: 1px solid #eee6d8;
+      margin-bottom: 0.3rem;
+    }
+    .bar-popup-title {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: var(--black);
+      flex: 1 1 100px;
+    }
+    .bar-popup-total {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: #ff6b00;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .bar-popup-list {
+      max-height: 135px;
+      overflow-y: auto;
+      padding: 0 0.7rem;
+    }
+    .bar-popup-list::-webkit-scrollbar { width: 5px; }
+    .bar-popup-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    .bar-popup-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.18rem 0;
+      font-size: 0.78rem;
+    }
+    .bar-popup-country {
+      color: #333;
+      overflow-wrap: break-word;
+      min-width: 0;
+    }
+    .bar-popup-amount {
+      color: var(--black);
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .chart-footer {
+      flex-shrink: 0;
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 0.5rem 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 1rem;
+      z-index: 20;
+    }
+    .footer-icons {
+      position: relative;
+      display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
+    }
+    .footer-icons::before {
+      content: '';
+      position: absolute;
+      top: -6px; bottom: -6px; right: -8px; left: -40px;
+      z-index: -1;
+      background: rgba(246,241,231,0.35);
+      backdrop-filter: blur(1.5px);
+      -webkit-backdrop-filter: blur(1.5px);
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
+      mask-image: linear-gradient(to right, transparent, #000 32px);
+    }
+    .footer-icon-btn {
+      width: 30px; height: 30px; border-radius: 3px;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    .footer-icon-btn:hover { background: #ede8de; color: var(--black); }
+    .footer-icon-btn svg { width: 14px; height: 14px; }
+
+    /* share dropdown */
+    .share-wrap { position: relative; }
+    .share-dropdown {
+      display: none; position: absolute; right: 0; bottom: 110%;
+      background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
+    }
+    .share-dropdown.open { display: block; }
+    .share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
+    .share-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
+    }
+    .share-option:hover { background: #ede8de; }
+    .share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
+
+    /* copy toast */
+    #copy-toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: #222; color: #fff; font-size: 0.76rem;
+      padding: 0.45rem 1rem; border-radius: 4px;
+      opacity: 0; transition: opacity 0.25s; pointer-events: none;
+      z-index: 9999; font-family: var(--font);
+    }
+    #copy-toast.show { opacity: 1; }
+
+    /* ── Info Modal ── */
+    #info-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.32); z-index: 3000;
+    }
+    #info-overlay.open { display: block; }
+    #info-modal {
+      display: none; position: fixed; z-index: 3001;
+      left: 50%; top: 50%; transform: translate(-50%,-50%);
+      background: #f6f1e7; border: 1px solid #ddd6c8;
+      border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+      width: 500px; max-width: calc(100vw - 3rem);
+      max-height: calc(100vh - 4rem);
+      font-family: var(--font);
+    }
+    #info-modal.open { display: block; }
+    #info-modal-inner { padding: 1rem; max-height: calc(100vh - 4rem); overflow-y: auto; }
+    #info-modal-inner::-webkit-scrollbar { width: 5px; }
+    #info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    #info-close {
+      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    #info-close:hover { background: #ede8de; color: var(--black); }
+    #info-close svg { width: 13px; height: 13px; }
+    #info-eyebrow {
+      font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #ff6b00;
+      line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
+    }
+    #info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
+    #info-body p { margin: 0 0 0.7rem; }
+    #info-body p:last-child { margin-bottom: 0; }
+    #info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    #info-body .info-tag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      color: #fff; background: #688fdc;
+      border: 1px solid #688fdc; border-radius: 3px;
+      padding: 0.2rem 0.55rem;
+    }
+    /* Region definitions: a slightly inset block so the two grouping
+       explanations read as asides rather than as more body copy. */
+    #info-body .info-def {
+      margin: 0 0 0.7rem;
+      padding-left: 0.7rem;
+      border-left: 2px solid #ddd6c8;
+    }
+    #info-body .info-def:last-of-type { margin-bottom: 0.7rem; }
+    #info-body .info-source {
+      margin-top: 1rem; padding-top: 0.7rem;
+      border-top: 1px solid #ddd6c8;
+      font-size: 0.75rem; color: var(--mid); line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="explorer-scale-container" id="explorer-scale-container">
+<div class="explorer-wrap" id="explorer-wrap">
+
+  <div class="chart-header">
+    <div class="chart-title">Gesamtzuweisungen an die Ukraine, nach Region</div>
+    <div class="kiel-logo">
+      <img src="../../assets/Kiel Institut Logo.svg" alt="Kiel Institut" />
+    </div>
+  </div>
+
+  <div class="chart-controls">
+    <div class="sort-custom" id="region-custom">
+      <button class="sort-custom-btn" id="region-btn" type="button">
+        <span id="region-label">Regionen auswählen</span>
+        <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <!-- Options are listed in REGION_ORDER, i.e. left-to-right bar order. -->
+      <div class="sort-custom-dropdown" id="region-dropdown">
+        <label class="sort-custom-option"><input type="checkbox" data-value="Vereinigte Staaten" checked><span class="cat-swatch" style="background:#ff6b00"></span>Vereinigte Staaten</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="EU-Mitgliedstaaten"><span class="cat-swatch" style="background:#7ba7e8"></span>EU-Mitgliedstaaten</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="Kontinentaleuropa" checked><span class="cat-swatch" style="background:#3a6dc5"></span>Kontinentaleuropa</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="EU-Mitgliedstaaten + EU-Institutionen"><span class="cat-swatch" style="background:#2a56a8"></span>EU-Mitgliedstaaten + EU-Institutionen</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="Kontinentaleuropa + EU-Institutionen"><span class="cat-swatch" style="background:#16386f"></span>Kontinentaleuropa + EU-Institutionen</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="EU-Institutionen" checked><span class="cat-swatch" style="background:#0d2c66"></span>EU-Institutionen</label>
+        <label class="sort-custom-option"><input type="checkbox" data-value="Übrige Welt" checked><span class="cat-swatch" style="background:#c9c0af"></span>Übrige Welt</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="bar-body">
+    <svg id="bar-svg"></svg>
+    <div id="bar-hover-popup"></div>
+  </div>
+
+  <div class="chart-footer">
+    <div class="footer-icons">
+      <button class="footer-icon-btn" id="info-btn" title="Über diese Daten">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><line x1="8" y1="7.1" x2="8" y2="11.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="4.85" r="0.95" fill="currentColor"/></svg>
+      </button>
+      <button class="footer-icon-btn" id="dl-btn" title="Daten herunterladen">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 4 3-4M2 13h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </button>
+      <div class="share-wrap">
+        <button class="footer-icon-btn" id="share-btn" title="Teilen">
+          <svg viewBox="0 0 16 16" fill="none"><circle cx="13" cy="3" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="3" cy="8" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="13" cy="13" r="1.6" stroke="currentColor" stroke-width="1.3"/><line x1="4.6" y1="7.2" x2="11.4" y2="4" stroke="currentColor" stroke-width="1.2"/><line x1="4.6" y1="8.8" x2="11.4" y2="12" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <div class="share-dropdown" id="share-dropdown">
+          <div class="share-dropdown-title">Teilen</div>
+          <div class="share-option" id="opt-image">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="7" r="1.2" stroke="currentColor" stroke-width="1.1"/><polyline points="1,11 5,7.5 8,10 11,7 15,11" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+            Diagramm als Bild kopieren
+          </div>
+          <div class="share-option" id="opt-link">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5a3.5 3.5 0 0 0 4.95 0l2-2a3.5 3.5 0 0 0-4.95-4.95l-1 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M9.5 6.5a3.5 3.5 0 0 0-4.95 0l-2 2a3.5 3.5 0 0 0 4.95 4.95l1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Link zum Diagramm kopieren
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="copy-toast">Link kopiert!</div>
+
+  <!-- ── Info Modal ── -->
+  <div id="info-overlay"></div>
+  <div id="info-modal">
+    <button id="info-close" title="Schließen">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div id="info-modal-inner">
+      <div id="info-eyebrow">Was diese Ansicht zeigt</div>
+      <div id="info-body"></div>
+    </div>
+  </div>
+
+</div><!-- /.explorer-wrap -->
+</div><!-- /.explorer-scale-container -->
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="../../assets/data-loader.js"></script>
+<script src="../../assets/country-names-de.js"></script>
+<script>
+/* ════════════════════════════════════
+   DATA
+   Regional totals (€ bn), aggregated at runtime from data/data_explorer.csv
+   (the same per-country, per-month allocation series used in the Data
+   Explorer) — see ../../assets/data-loader.js.
+   The four base regions partition the donors:
+     United States        – US
+     EU Institutions      – EU (Commission and Council)
+     Continental Europe   – the 27 EU member states plus the non-EU European
+                            donors (United Kingdom, Norway, Switzerland,
+                            Iceland) — see CONTINENTAL_EUROPE_COUNTRIES
+     Rest of the World    – all other donors (Canada, Australia, Japan,
+                            South Korea, Turkiye, etc.)
+   Three further groups are offered as aggregates over the same donors — EU
+   Members, EU Members + EU Institutions, Continental Europe + EU Institutions
+   — so they overlap the base regions and each other. See REGION_DEFS.
+════════════════════════════════════ */
+let REGION_DATA = [];
+let RELEASE_LABEL = 'Ukraine Support Tracker, Release 30 (07/2026)';
+
+const CONTINENTAL_EUROPE_COUNTRIES = [
+  'Germany','United Kingdom','Netherlands','France','Belgium','Italy','Spain',
+  'Switzerland','Ireland','Austria','Luxembourg','Portugal','Greece','Denmark',
+  'Sweden','Norway','Finland','Poland','Lithuania','Slovakia','Estonia',
+  'Romania','Latvia','Croatia','Slovenia','Czechia','Iceland','Hungary','Bulgaria'
+];
+/* EU Members is Continental Europe minus the European donors outside the bloc. */
+const NON_EU_EUROPE = ['United Kingdom', 'Norway', 'Switzerland', 'Iceland'];
+const EU_MEMBER_COUNTRIES = CONTINENTAL_EUROPE_COUNTRIES.filter(c => !NON_EU_EUROPE.includes(c));
+const EU_INSTITUTIONS = 'EU (Commission and Council)';
+
+const isUS   = c => c === 'United States';
+const isEUI  = c => c === EU_INSTITUTIONS;
+const isCE   = c => CONTINENTAL_EUROPE_COUNTRIES.includes(c);
+const isEUM  = c => EU_MEMBER_COUNTRIES.includes(c);
+
+/* Every group offered in the selector, in left-to-right bar order. The first
+   four partition the donor universe; the three aggregates overlap them and
+   each other, and may be ticked in any combination — the selector applies no
+   exclusivity, so a selection can deliberately double-count. */
+const REGION_DEFS = [
+  { label: 'Vereinigte Staaten',                        color: '#ff6b00', base: true,  test: isUS },
+  { label: 'EU-Mitgliedstaaten',                        color: '#7ba7e8', base: false, test: isEUM },
+  { label: 'Kontinentaleuropa',                         color: '#3a6dc5', base: true,  test: isCE },
+  { label: 'EU-Mitgliedstaaten + EU-Institutionen',     color: '#2a56a8', base: false, test: c => isEUM(c) || isEUI(c) },
+  { label: 'Kontinentaleuropa + EU-Institutionen',      color: '#16386f', base: false, test: c => isCE(c)  || isEUI(c) },
+  { label: 'EU-Institutionen',                          color: '#0d2c66', base: true,  test: isEUI },
+  { label: 'Übrige Welt',                               color: '#c9c0af', base: true,  test: c => !isUS(c) && !isEUI(c) && !isCE(c) }
+];
+const REGION_COLORS = Object.fromEntries(REGION_DEFS.map(d => [d.label, d.color]));
+const REGION_ORDER  = REGION_DEFS.map(d => d.label);
+/* The four non-overlapping regions — the denominator of the XLSX export's share
+   column, so its totals still add up however the chart is filtered. */
+const BASE_REGIONS  = REGION_DEFS.filter(d => d.base).map(d => d.label);
+
+/* Which groups are drawn. The checkboxes in .chart-controls write to this;
+   REGION_DATA itself always holds all seven, so the export and the chart stay
+   independent (same as the category chart's download). */
+let activeRegions = new Set(BASE_REGIONS);
+
+function computeRegionData(rows){
+  const byCountry = new Map();
+  rows.forEach(r => {
+    const country = r.country;
+    byCountry.set(country, (byCountry.get(country) || 0) + (Number(r.total) || 0));
+  });
+
+  const countries = [...byCountry.entries()].map(([name, value]) => ({ name, value }));
+
+  return REGION_DEFS.map(def => {
+    const contributors = countries.filter(c => def.test(c.name));
+    const value = contributors.reduce((s, c) => s + c.value, 0);
+    return { label: def.label, value, color: def.color, contributors };
+  }).filter(d => d.contributors.length);
+}
+
+/* ════════════════════════════════════
+   REGION SELECTOR
+   Multi-select checkbox dropdown, identical in markup and behaviour to the
+   category selector in de_total_allocations.html: the button keeps a fixed label,
+   the last checked box can't be unchecked, and every change re-renders.
+════════════════════════════════════ */
+(function(){
+  const btn = document.getElementById('region-btn');
+  const dropdown = document.getElementById('region-dropdown');
+  const boxes = dropdown.querySelectorAll('input[type="checkbox"]');
+  btn.addEventListener('click', e=>{ e.stopPropagation(); dropdown.classList.toggle('open'); });
+  document.addEventListener('click', ()=>dropdown.classList.remove('open'));
+  dropdown.addEventListener('click', e=>e.stopPropagation());
+  boxes.forEach(box=>box.addEventListener('change', ()=>{
+    const val = box.dataset.value;
+    if(box.checked) activeRegions.add(val); else activeRegions.delete(val);
+    /* never leave the chart empty — the last region stays checked */
+    if(activeRegions.size===0){ box.checked=true; activeRegions.add(val); }
+    renderChart();
+  }));
+})();
+
+function fmt(v, dec=2){
+  if (v===null||v===undefined||isNaN(v)||v===0) return '–';
+  return v.toFixed(dec);
+}
+
+function formatBn(v){
+  return `${fmt(v)} Mrd. €`;
+}
+
+function formatContributor(v){
+  return `${fmt(v)} Mrd. €`;
+}
+
+function buildPopupContent(d){
+  const contributors = [...d.contributors].sort((a, b) => b.value - a.value);
+  const rows = contributors.map(c => `
+    <div class="bar-popup-row">
+      <span class="bar-popup-country">${USTde.country(c.name)}</span>
+      <span class="bar-popup-amount">${formatContributor(c.value)}</span>
+    </div>
+  `).join('');
+  return `
+    <div class="bar-popup-header">
+      <span class="bar-popup-title">${d.label}</span>
+      <span class="bar-popup-total">${formatBn(d.value)}</span>
+    </div>
+    <div class="bar-popup-list">${rows}</div>
+  `;
+}
+
+/* Region names start on one line each. Several are wider than their bar — the
+   aggregates ('Continental Europe + EU Institutions') much wider — which is
+   fine, because a label only has to clear its NEIGHBOURS. Where it stops
+   clearing them (a narrow embed, or simply many regions ticked at once),
+   fitAxisLabels() first shaves the whole axis down a little, and once that
+   would leave the names too small to read comfortably it breaks them over
+   several lines at a readable size instead. Text stays on one line as long as
+   it is anywhere near full size — a line break in a big label reads as a
+   deliberate two-part name, which these aren't. */
+const AXIS_LABEL_REM = 0.88;
+const AXIS_LABEL_MIN_REM = 0.6;
+const AXIS_LABEL_WRAP_REM = 0.8;   // shrink stops here; below it, names wrap
+const AXIS_LABEL_GAP = 8;          // clear space demanded between two names
+const AXIS_LABEL_LINE_RATIO = 1.12;// leading of a wrapped name, as a multiple of its font size
+/* Three lines hold every name in the set at any width the card can reach, and
+   pad.b has room for them. A wrap that still doesn't fit shrinks instead of
+   stacking a fourth line, so the axis never grows into a paragraph. */
+const AXIS_LABEL_MAX_LINES = 3;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/* getComputedTextLength() throws on an unrendered svg (a hidden embed resizing
+   in the background), so every measurement has a fallback. */
+function textWidth(node){
+  try { return node.getComputedTextLength(); } catch (e) { return 0; }
+}
+
+/* Greedily wraps `name` so each line's real rendered width (via measureFn) fits
+   within maxWidth. A single word has nothing to break on and comes back
+   unwrapped — the caller's shrink deals with those. Same helper as the donor
+   ranking's left gutter (de_allocations_by_donor.html), so a name breaks in the same place
+   in both. */
+function wrapLabelAuto(name, maxWidth, measureFn){
+  if (measureFn(name) <= maxWidth) return [name];
+  const words = name.split(' ');
+  if (words.length === 1) return [name];
+  const lines = [];
+  let cur = '';
+  words.forEach(w => {
+    const test = cur ? cur + ' ' + w : w;
+    if (cur && measureFn(test) > maxWidth) { lines.push(cur); cur = w; }
+    else cur = test;
+  });
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/* Collision is a property of a PAIR of neighbours: two centred labels one step
+   apart touch when half of each, plus a gap, exceeds the step. Testing pairs
+   instead of each label against the step matters now that the aggregates exist
+   — a long name flanked by short ones ('United States', 'Rest of the World')
+   needs no shrinking at all, where a per-label test would shrink the axis hard.
+   Widths here are per-label WIDEST LINE, so the same test serves wrapped and
+   unwrapped names. */
+function axisLabelsClear(widths, room){
+  for (let i = 0; i < widths.length - 1; i++) {
+    if ((widths[i] + widths[i + 1]) / 2 > room) return false;
+  }
+  return true;
+}
+
+/* One shared size and one shared line count for all of them, since four
+   different sizes on one axis reads as a bug. */
+function drawAxisLabel(node, lines, rem, lineH){
+  node.setAttribute('font-size', `${rem.toFixed(3)}rem`);
+  node.textContent = '';
+  if (lines.length < 2) { node.textContent = lines[0] || ''; return; }
+  const x = node.getAttribute('x');
+  lines.forEach((line, i) => {
+    const ts = document.createElementNS(SVG_NS, 'tspan');
+    ts.setAttribute('x', x);
+    ts.setAttribute('dy', i === 0 ? 0 : lineH);
+    ts.textContent = line;
+    node.appendChild(ts);
+  });
+}
+
+function fitAxisLabels(nodes, step){
+  if (!(step > 0) || nodes.length < 2) return;
+  const room = step - AXIS_LABEL_GAP;
+  if (!(room > 0)) return;
+
+  const widths = nodes.map(textWidth);
+  /* A width of 0 means the svg isn't laid out and nothing can be measured —
+     leave the labels on one line at full size rather than wrapping on guesses. */
+  if (widths.some(w => !(w > 0))) return;
+  if (axisLabelsClear(widths, room)) return;
+
+  /* Would a modest shrink alone do it? Keep one line if so. */
+  let ratio = 1;
+  for (let i = 0; i < widths.length - 1; i++) {
+    const needed = (widths[i] + widths[i + 1]) / 2;
+    if (needed > room) ratio = Math.min(ratio, room / needed);
+  }
+  const shrunk = AXIS_LABEL_REM * ratio;
+  if (shrunk >= AXIS_LABEL_WRAP_REM) {
+    nodes.forEach(n => n.setAttribute('font-size', `${shrunk.toFixed(3)}rem`));
+    return;
+  }
+
+  /* Wrapping instead. Measured on a probe rather than the labels themselves so
+     the axis is written once, at the size that survives — the names would
+     otherwise be seen reflowing through every candidate. */
+  const labels = nodes.map(n => n.textContent);
+  const probe = document.createElementNS(SVG_NS, 'text');
+  probe.setAttribute('visibility', 'hidden');
+  nodes[0].parentNode.appendChild(probe);
+  const measureAt = rem => {
+    probe.setAttribute('font-size', `${rem.toFixed(3)}rem`);
+    return str => { probe.textContent = str; return textWidth(probe); };
+  };
+
+  /* Largest size whose wrap both clears the neighbours and stays inside the
+     line budget. Starts at AXIS_LABEL_WRAP_REM rather than full size: wrapping
+     only happens once shrinking alone already failed to clear the neighbours
+     at that size, and starting the search any higher could hand back a
+     wrapped label at the SAME size as an unwrapped one, which reads as
+     inconsistent — a line break should always come with a visibly smaller
+     label. Both clearing and the line budget get easier as the text shrinks,
+     so the first size that works is the best one. */
+  let best = null;
+  for (let rem = AXIS_LABEL_WRAP_REM; rem > AXIS_LABEL_MIN_REM; rem -= 0.02) {
+    const measure = measureAt(rem);
+    const lines = labels.map(l => wrapLabelAuto(l, room, measure));
+    if (lines.some(ls => ls.length > AXIS_LABEL_MAX_LINES)) continue;
+    if (axisLabelsClear(lines.map(ls => Math.max(...ls.map(measure))), room)) {
+      best = { rem, lines };
+      break;
+    }
+  }
+  /* Nothing fit — an unbreakable word wider than the step, on a very narrow
+     card. Wrap at the floor and let the longest name sit close to its
+     neighbour, which still reads better than overlapping text. */
+  if (!best) {
+    const measure = measureAt(AXIS_LABEL_MIN_REM);
+    best = { rem: AXIS_LABEL_MIN_REM, lines: labels.map(l => wrapLabelAuto(l, room, measure)) };
+  }
+  probe.remove();
+
+  const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const lineH = Math.round(best.rem * rootPx * AXIS_LABEL_LINE_RATIO);
+  nodes.forEach((n, i) => drawAxisLabel(n, best.lines[i], best.rem, lineH));
+}
+
+/* Corner radius of the Data Explorer's ranking bars (rx=1) — the two cards read
+   as one family, so the radius is shared rather than tuned per chart. */
+const BAR_CORNER_R = 1;
+
+/* d3's band scale hands the whole plot to however many bars are selected, so
+   deselecting regions would fatten the survivors into slabs. Bars keep their
+   four-region width instead and are centred in their band, which also keeps a
+   single selected region centred in the plot. */
+const MAX_BAR_W = 80;
+
+/* Bars are drawn with a rounded top and a square base so the mark stays
+   visually anchored to the zero baseline (a fully rounded rect floats). */
+function barPath(x, y, w, h, r){
+  const rr = Math.max(0, Math.min(r, w / 2, h));
+  return `M ${x} ${y + h} L ${x} ${y + rr} Q ${x} ${y} ${x + rr} ${y}`
+       + ` L ${x + w - rr} ${y} Q ${x + w} ${y} ${x + w} ${y + rr}`
+       + ` L ${x + w} ${y + h} Z`;
+}
+
+function renderChart(){
+  /* The svg is width/height 100% of .bar-body's CONTENT box, but clientWidth /
+     clientHeight report the padding box — measure the content box explicitly,
+     or the viewBox ends up wider than the element that carries it and the
+     whole drawing is silently squeezed and offset. */
+  const wrap = document.querySelector('.bar-body');
+  const cs = getComputedStyle(wrap);
+  const W = (wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) || 530;
+  const H = (wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) || 370;
+  /* t is set so the unit label sits at the same height as the line
+     chart's '€ billion' label. Both cards now stack identically above their
+     svg — a 76.5px header plus a 46.06px controls bar (0.98rem button at
+     line-height 1.15 = 15.78px text + 0.46rem padding both sides + 1px borders
+     = 30.66px, inside 0.55rem bar padding) — so matching that card simply means
+     using its plot padding (20) and lifting the label the same 8px it does.
+     The 1.15 is pinned in both stylesheets rather than left to Chrome's UA
+     sheet, which resets buttons to line-height:normal and would make this
+     depend on Arial's metrics. Keep in sync with de_total_allocations.html.
+     b needs only ~30px for the one-line region names,
+     but is set so the zero baseline lands at the same height as the line
+     chart's x-axis when the two cards sit side by side and bottom-aligned.
+     That card stacks, measured up from its bottom edge: its legend row
+     (0.82rem x 1.5 line-height = 17.22px, plus 0.55rem padding-bottom =
+     7.7px), its chart wrap's 0.4rem bottom padding (5.6px), and its own
+     35px bottom plot padding — 65.5px in total. Keep these in sync if
+     de_total_allocations.html's legend or plot padding changes. */
+  const pad = { t: 20, r: 6, b: 65.5, l: 34 };
+  /* A short embed can drive the plot to a negative height, which d3 turns into
+     inverted bars and an svg rect that throws on a negative height attribute —
+     floor it so the card degrades to a squashed plot instead of breaking. */
+  const iW = W - pad.l - pad.r, iH = Math.max(40, H - pad.t - pad.b);
+
+  /* only the regions ticked in the controls bar are drawn */
+  const DATA = REGION_DATA.filter(d => activeRegions.has(d.label));
+
+  const svg = d3.select('#bar-svg')
+    .attr('viewBox', `0 0 ${W} ${H}`).attr('width', W).attr('height', H);
+  svg.selectAll('*').remove();
+  const g = svg.append('g').attr('transform', `translate(${pad.l},${pad.t})`);
+
+  const xSc = d3.scaleBand()
+    .domain(DATA.map((d, i) => i))
+    .range([0, iW]).paddingInner(0.42).paddingOuter(0.3);
+
+  /* 1.16 headroom keeps the tallest bar's two-line value label inside the plot.
+     The scale follows the selection, so deselecting the tallest region rescales
+     the axis around the ones that remain. */
+  const maxVal = Math.max(0.01, ...DATA.map(d => d.value));
+  const ySc = d3.scaleLinear().domain([0, maxVal * 1.16]).range([iH, 0]).nice();
+  const yTickVals = ySc.ticks(5).length >= 2 ? ySc.ticks(5) : [0, ySc.domain()[1]];
+
+  /* gridlines — recessive, behind the bars */
+  g.append('g').selectAll('line').data(yTickVals).enter().append('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => ySc(d)).attr('y2', d => ySc(d))
+    .attr('stroke', '#e0e0e0');
+
+  /* y axis: € billion */
+  g.append('g')
+    .call(d3.axisLeft(ySc).tickValues(yTickVals).tickFormat(d => d.toFixed(0)))
+    .call(sel => sel.select('.domain').remove())
+    .call(sel => sel.selectAll('line').attr('stroke', '#eee'))
+    .call(sel => sel.selectAll('text').style('font-size', '0.86rem').style('fill', '#000'));
+
+  /* Matches the line chart's unit label exactly — same 0.9rem size, same end
+     anchor at the same 51px from the svg's left edge (that card's pad.l - 4).
+     Both svgs start flush with their card's content box, so anchoring the same
+     string identically lands both its edges in the same place on both cards.
+     Not tied to our own pad.l, which is narrower than the line chart's. */
+  svg.append('text')
+    .attr('x', 51).attr('y', pad.t - 8)
+    .attr('text-anchor', 'end')
+    .attr('font-size', '0.9rem').attr('fill', '#000')
+    .text('Mrd. €');
+
+  /* zero baseline */
+  g.append('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', iH).attr('y2', iH)
+    .attr('stroke', '#ddd');
+
+  /* bars + direct labels */
+  const barW = Math.min(xSc.bandwidth(), MAX_BAR_W);
+  const barInset = (xSc.bandwidth() - barW) / 2;
+  const bars = [];
+  const axisLabels = [];
+  DATA.forEach((d, i) => {
+    const x = xSc(i) + barInset;
+    const y = ySc(d.value);
+    const h = Math.max(0, iH - y);
+
+    const bar = g.append('path')
+      .attr('d', barPath(x, y, barW, h, BAR_CORNER_R))
+      .attr('fill', d.color)
+      .attr('class', 'bar-rect');
+    bars.push(bar);
+
+    /* value directly above the bar, in ink rather than the series color so it
+       stays legible over the cream surface */
+    g.append('text')
+      .attr('x', x + barW / 2).attr('y', y - 8)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '0.95rem').attr('font-weight', 700).attr('fill', '#1a1a1a')
+      .text(`${Math.round(d.value)} Mrd. €`);
+
+    /* region name under the axis — starts on one line; fitAxisLabels() shrinks
+       it, then wraps it, if the selection leaves it too tight against its
+       neighbours */
+    axisLabels.push(g.append('text')
+      .attr('x', x + barW / 2).attr('y', iH + 16)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', `${AXIS_LABEL_REM}rem`).attr('fill', '#1a1a1a')
+      .text(d.label)
+      .node());
+  });
+
+  fitAxisLabels(axisLabels, xSc.step());
+
+  /* One transparent overlay across the whole plot rather than a rect per bar:
+     the region shown is decided by which horizontal interval the cursor is in,
+     so every x position resolves to a bar — gaps and outer margins included,
+     and short bars (Rest of the World) are as easy to hit as tall ones. */
+  const centers = DATA.map((d, i) => xSc(i) + xSc.bandwidth() / 2);
+  const overlay = g.append('rect')
+    .attr('class', 'bar-hit')
+    .attr('x', 0).attr('y', 0)
+    .attr('width', iW).attr('height', iH)
+    .attr('fill', 'transparent');
+
+  setupBarHoverPopups(overlay, centers, iW, bars, DATA);
+}
+
+/* ── listeners that outlive a render ──────────────────────────────────
+   renderChart() rebuilds the overlay on every resize, but the popup element
+   and document persist — so anything bound to THEM is bound once here and
+   reaches the current render through popupCtl, rather than each closure
+   stacking another listener per reflow.
+────────────────────────────────────────────────────────────────────── */
+let popupCtl = null;
+(function bindPersistentPopupListeners(){
+  const popup = document.getElementById('bar-hover-popup');
+
+  /* Leaving the pinned card puts everything back to pre-click state. The next
+     mousemove over the plot re-shows the region under the cursor, so sliding
+     off the card straight onto another bar reads as uninterrupted hover. */
+  popup.addEventListener('mouseleave', () => {
+    if (!popupCtl) return;
+    if (popupCtl.isPinned()) popupCtl.unpin();
+    else popupCtl.scheduleHide();
+  });
+  popup.addEventListener('mouseenter', () => popupCtl && popupCtl.cancelHide());
+
+  /* A click outside the pinned card releases it — also the only release path
+     on touch, where mouseleave never fires. */
+  document.addEventListener('click', (e) => {
+    if (!popupCtl || !popupCtl.isPinned()) return;
+    if (popupCtl.ownsTarget(e.target)) return;
+    popupCtl.unpin();
+  });
+
+  /* Safety net: a pin made without ever entering the card gets no mouseleave
+     from it, so leaving the whole chart releases it too. Both the bars and the
+     card live inside this element, so travelling between them never fires. */
+  document.querySelector('.explorer-wrap').addEventListener('mouseleave', () => {
+    if (popupCtl && popupCtl.isPinned()) popupCtl.unpin();
+  });
+})();
+
+/* `data` is the rendered (selected) subset of REGION_DATA — the popup indexes
+   into it, so a hover always resolves to the bar actually under the cursor. */
+function setupBarHoverPopups(overlay, centers, iW, bars, data){
+  const barBody = document.querySelector('.bar-body');
+  const popup = document.getElementById('bar-hover-popup');
+  const el = overlay.node();
+  let hideTimer = null;
+  let activeIndex = -1;
+  let pinnedIndex = -1;
+
+  /* A reflow re-enters this function with a fresh overlay while the popup
+     element itself persists, so any pin from the previous render is dropped. */
+  popup.classList.remove('show', 'pinned');
+
+  function cancelHide(){
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+  }
+  function scheduleHide(){
+    cancelHide();
+    hideTimer = setTimeout(() => popup.classList.remove('show'), 250);
+  }
+  // The card is laid out fluidly, so this ratio is normally 1 — it is kept so
+  // the popup still tracks the cursor if an embedder ever puts the panel back
+  // under a CSS transform, where getBoundingClientRect() returns visual
+  // (scaled) pixels while clientWidth/offsetWidth stay in layout pixels.
+  /* The footer icon cluster floats over the bottom-right of the card and the
+     popup sits above it in z-order, so the buttons have to be treated as
+     no-go areas rather than just something the popup happens to miss. Rects
+     come back in .bar-body layout px, padded so the card never crowds them. */
+  const KEEP_CLEAR = 8;
+  function blockedRects(bodyRect, scale){
+    const out = [];
+    document.querySelectorAll('.footer-icons, .share-dropdown.open').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      out.push({
+        left:   (r.left   - bodyRect.left) / scale - KEEP_CLEAR,
+        top:    (r.top    - bodyRect.top)  / scale - KEEP_CLEAR,
+        right:  (r.right  - bodyRect.left) / scale + KEEP_CLEAR,
+        bottom: (r.bottom - bodyRect.top)  / scale + KEEP_CLEAR
+      });
+    });
+    return out;
+  }
+
+  function positionAt(clientX, clientY){
+    const bodyRect = barBody.getBoundingClientRect();
+    const scale = bodyRect.width / barBody.clientWidth;
+    const offset = 14;
+    const w = popup.offsetWidth, h = popup.offsetHeight;
+    const cx = (clientX - bodyRect.left) / scale;
+    const cy = (clientY - bodyRect.top) / scale;
+    const maxLeft = barBody.clientWidth - w - 4;
+    const maxTop = barBody.clientHeight - h - 4;
+    const blocked = blockedRects(bodyRect, scale);
+    const overlaps = (l, t) => blocked.some(r =>
+      l < r.right && l + w > r.left && t < r.bottom && t + h > r.top);
+    const inBounds = (l, t) => l >= 4 && l <= maxLeft && t >= 4 && t <= maxTop;
+
+    /* Cursor-anchored placements in preference order: below-right as before,
+       then flipped up and/or left. The first one that fits the panel and
+       clears the buttons wins, so the card flips instead of covering them. */
+    let pick = [
+      [cx + offset, cy + offset],
+      [cx + offset, cy - offset - h],
+      [cx - offset - w, cy + offset],
+      [cx - offset - w, cy - offset - h]
+    ].find(([l, t]) => inBounds(l, t) && !overlaps(l, t));
+
+    if (!pick) {
+      /* No flip fits — clamp into the panel the old way, then push the card
+         off whatever it still covers: up first (there is normally room above
+         the footer strip), else sideways. */
+      let left = Math.max(4, Math.min(cx + offset, maxLeft));
+      let top = Math.max(4, Math.min(cy + offset, maxTop));
+      blocked.forEach(r => {
+        if (!(left < r.right && left + w > r.left && top < r.bottom && top + h > r.top)) return;
+        if (r.top - h >= 4) top = r.top - h;
+        else if (r.left - w >= 4) left = r.left - w;
+        else top = Math.min(r.bottom, maxTop);
+      });
+      pick = [left, top];
+    }
+    popup.style.left = `${pick[0]}px`;
+    popup.style.top = `${pick[1]}px`;
+  }
+
+  /* Handlers live on the hit rects, so the highlight has to be applied to the
+     bar explicitly — a CSS :hover on the bar would never fire. */
+  function highlight(i){
+    bars.forEach((bar, bi) => bar.attr('opacity', bi === i ? 0.82 : 1));
+  }
+  function clearHighlight(){
+    bars.forEach(bar => bar.attr('opacity', 1));
+  }
+
+  /* Which interval the cursor is in. The overlay spans the plot's [0, iW] in
+     user units, so the client x is rescaled into that range and matched to the
+     nearest band centre — boundaries land midway between neighbouring bars. */
+  function indexAt(clientX){
+    const r = el.getBoundingClientRect();
+    const x = (clientX - r.left) / r.width * iW;
+    let best = 0;
+    centers.forEach((cx, i) => {
+      if (Math.abs(x - cx) < Math.abs(x - centers[best])) best = i;
+    });
+    return best;
+  }
+
+  function showRegion(i, clientX, clientY){
+    activeIndex = i;
+    cancelHide();
+    highlight(i);
+    popup.innerHTML = buildPopupContent(data[i]);
+    popup.classList.add('show');
+    positionAt(clientX, clientY);
+  }
+
+  /* ── hover vs. pinned ──────────────────────────────────────────────
+     Hovering drives the card: the interval the cursor sits in decides which
+     region is shown, the card trails the cursor, and leaving the plot
+     dismisses it. Because it trails, a long list can never be scrolled — the
+     card keeps moving out from under the cursor. Clicking a bar therefore PINS
+     it: the card stops following, becomes interactive (see .pinned in the CSS)
+     and can be scrolled. Moving off the card releases the pin and restores
+     plain hover, exactly as before the click.
+  ─────────────────────────────────────────────────────────────────── */
+  function pinAt(i, clientX, clientY){
+    pinnedIndex = i;
+    showRegion(i, clientX, clientY);
+    popup.classList.add('pinned');
+  }
+  function unpin(){
+    pinnedIndex = -1;
+    activeIndex = -1;
+    popup.classList.remove('pinned', 'show');
+    clearHighlight();
+    cancelHide();
+  }
+  /* hand this render's state to the persistent popup/document listeners */
+  popupCtl = {
+    isPinned: () => pinnedIndex !== -1,
+    /* the bar overlay owns its own clicks — those toggle the pin below rather
+       than releasing it as an outside click would */
+    ownsTarget: (t) => t === el || popup.contains(t),
+    unpin, cancelHide, scheduleHide
+  };
+
+  el.addEventListener('mousemove', (e) => {
+    if (pinnedIndex !== -1) return;   // pinned: cursor no longer drives the card
+    const i = indexAt(e.clientX);
+    /* only rebuild the card when the cursor crosses into another interval */
+    if (i !== activeIndex) showRegion(i, e.clientX, e.clientY);
+    else positionAt(e.clientX, e.clientY);
+  });
+  el.addEventListener('mouseleave', () => {
+    if (pinnedIndex !== -1) return;   // pinned: survives the trip to the card
+    activeIndex = -1;
+    clearHighlight();
+    scheduleHide();
+  });
+
+  el.addEventListener('click', (e) => {
+    const i = indexAt(e.clientX);
+    /* clicking the pinned region again releases it, so the same gesture
+       toggles; clicking a different bar moves the pin there */
+    if (pinnedIndex === i) unpin();
+    else pinAt(i, e.clientX, e.clientY);
+  });
+}
+
+async function init(){
+  const rows = await USTData.fetchCSV('data_explorer.csv');
+  REGION_DATA = computeRegionData(rows);
+  RELEASE_LABEL = await USTData.fetchReleaseLabel(RELEASE_LABEL);
+  renderChart();
+}
+init();
+
+/* ════════════════════════════════════
+   DOWNLOAD (XLSX export of regional totals)
+════════════════════════════════════ */
+let kielLogoPng = null;
+async function getKielLogoPng(){
+  if (kielLogoPng) return kielLogoPng;
+  const svgText = await fetch('../../assets/Kiel Institut Logo.svg').then(r => r.text());
+  const svgBlob = new Blob([svgText], {type:'image/svg+xml'});
+  const svgUrl  = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve; img.onerror = reject; img.src = svgUrl;
+  });
+  const scale = 3;
+  const canvas = document.createElement('canvas');
+  canvas.width  = img.naturalWidth  * scale;
+  canvas.height = img.naturalHeight * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  URL.revokeObjectURL(svgUrl);
+  kielLogoPng = {
+    dataUrl: canvas.toDataURL('image/png'),
+    width: img.naturalWidth, height: img.naturalHeight
+  };
+  return kielLogoPng;
+}
+
+document.getElementById('dl-btn').addEventListener('click', async () => {
+  /* Every option the region selector offers, whatever is ticked on screen: the
+     overlapping aggregate groups first, a separator band, then the four regions
+     that partition the donor universe. Shares are of the total those four add
+     up to, so their column sums to 100% and the aggregates above stay readable
+     as shares of all tracked aid. */
+  const baseRegions      = REGION_DATA.filter(d =>  BASE_REGIONS.includes(d.label));
+  const aggregateRegions = REGION_DATA.filter(d => !BASE_REGIONS.includes(d.label));
+  const total = baseRegions.reduce((s, d) => s + d.value, 0);
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Kiel Institut für Weltwirtschaft — Ukraine Support Tracker';
+  wb.created = new Date();
+  const ws = wb.addWorksheet('Zuweisungen nach Region', { views: [{ showGridLines: false }] });
+
+  const leftPad = 2, topPad = 2;
+  const dataColCount = 4;
+  const firstCol = leftPad + 1;
+  const lastCol  = leftPad + dataColCount;
+  const logoCol  = lastCol + 1;
+
+  for (let i = 0; i < topPad; i++) ws.addRow([]);
+
+  ws.mergeCells(topPad + 1, firstCol, topPad + 1, lastCol);
+  ws.mergeCells(topPad + 2, firstCol, topPad + 2, lastCol);
+  ws.mergeCells(topPad + 3, firstCol, topPad + 3, lastCol);
+
+  const titleCell = ws.getCell(topPad + 1, firstCol);
+  titleCell.value = 'Ukraine Support Tracker — Gesamtzuweisungen an die Ukraine, nach Region';
+  titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFF6B00' } };
+  ws.getRow(topPad + 1).height = 26;
+
+  const releaseCell = ws.getCell(topPad + 2, firstCol);
+  releaseCell.value = RELEASE_LABEL;
+  releaseCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF555555' } };
+  ws.getRow(topPad + 2).height = 15;
+
+  const sourceCell = ws.getCell(topPad + 3, firstCol);
+  sourceCell.value = 'Datenquelle: Kiel Institut für Weltwirtschaft — Ukraine Support Tracker (kiel-institute.de/ukraine)';
+  sourceCell.font = { name: 'Calibri', size: 8.5, italic: true, color: { argb: 'FF888888' } };
+  ws.getRow(topPad + 3).height = 14;
+  ws.addRow([]);
+
+  const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Region', 'Gesamtzuweisungen (Mrd. €)', 'Anteil an der Gesamtsumme', 'Länder']);
+  headerRow.eachCell({ includeEmpty: false }, cell => {
+    cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3A6DC5' } };
+    cell.alignment = { vertical: 'middle' };
+  });
+  headerRow.height = 18;
+
+  /* A merged, tinted band marking each block — the separator between the
+     overlapping aggregates and the regions that partition the aid. */
+  function addSectionBand(caption){
+    const bandRow = ws.addRow([]);
+    ws.mergeCells(bandRow.number, firstCol, bandRow.number, lastCol);
+    const bandCell = ws.getCell(bandRow.number, firstCol);
+    bandCell.value = caption;
+    bandCell.font = { name: 'Calibri', size: 9, bold: true, color: { argb: 'FF666666' } };
+    bandCell.alignment = { vertical: 'middle' };
+    for (let c = firstCol; c <= lastCol; c++) {
+      ws.getCell(bandRow.number, c).fill =
+        { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEDE7DA' } };
+    }
+    bandRow.height = 18;
+  }
+
+  function addRegionRows(regions){
+    regions.forEach(d => {
+      const countryList = d.contributors.map(c => USTde.country(c.name)).join(', ');
+      const dataRow = ws.addRow([...Array(leftPad).fill(null), d.label, d.value,
+        total > 0 ? d.value / total : 0, countryList]);
+      dataRow.getCell(firstCol + 1).numFmt = '0.00';
+      dataRow.getCell(firstCol + 2).numFmt = '0.0%';
+      dataRow.getCell(firstCol + 3).alignment = { wrapText: true, vertical: 'top' };
+      dataRow.font = { name: 'Calibri', size: 10 };
+    });
+  }
+
+  addSectionBand('AGGREGATE — diese überschneiden sich untereinander und mit den Regionen darunter und dürfen daher nicht addiert werden');
+  addRegionRows(aggregateRegions);
+  addSectionBand('REGIONEN — überschneidungsfrei; diese vier decken alle Geber ab, ihre Anteile summieren sich auf 100 %');
+  addRegionRows(baseRegions);
+
+  ws.columns = [
+    ...Array(leftPad).fill({ width: 3 }),
+    { width: 26 }, { width: 20 }, { width: 16 }, { width: 60 }
+  ];
+
+  try {
+    const logo = await getKielLogoPng();
+    const imgId = wb.addImage({ base64: logo.dataUrl, extension: 'png' });
+    const logoDisplayHeight = 64;
+    const logoDisplayWidth  = logoDisplayHeight * (logo.width / logo.height);
+    ws.addImage(imgId, {
+      tl: { col: logoCol - 1 + 0.05, row: topPad + 0.05 },
+      ext: { width: logoDisplayWidth, height: logoDisplayHeight },
+      editAs: 'absolute'
+    });
+  } catch (e) {
+    console.warn('Could not embed Kiel Institute logo in export:', e);
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'Ukraine Support Tracker, Gesamtzuweisungen an die Ukraine, nach Region.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* ════════════════════════════════════
+   SHARE (image / link)
+════════════════════════════════════ */
+(function(){
+  const shareBtn = document.getElementById('share-btn');
+  const shareDropdown = document.getElementById('share-dropdown');
+  shareBtn.addEventListener('click', e=>{ e.stopPropagation(); shareDropdown.classList.toggle('open'); });
+  document.addEventListener('click', ()=>shareDropdown.classList.remove('open'));
+  shareDropdown.addEventListener('click', e=>e.stopPropagation());
+})();
+
+function showCopyToast(msg){
+  const toast = document.getElementById('copy-toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'), 1800);
+}
+
+document.getElementById('opt-link').addEventListener('click', () => {
+  navigator.clipboard.writeText(window.location.href).catch(()=>{});
+  document.getElementById('share-dropdown').classList.remove('open');
+  showCopyToast('Link kopiert!');
+});
+
+/* CSS gives shapes their stroke/fill via stylesheet rules that won't travel with a
+   standalone serialized SVG, so bake the relevant computed styles into inline
+   style attributes on a 1:1 cloned tree before serializing. */
+function inlineComputedStyles(srcEl, destEl){
+  const props = ['fill','stroke','stroke-width','stroke-dasharray','opacity','fill-opacity','stroke-opacity','font-size','font-family','font-weight','text-anchor','dominant-baseline'];
+  const cs = getComputedStyle(srcEl);
+  let style = '';
+  props.forEach(p=>{ const v = cs.getPropertyValue(p); if(v) style += `${p}:${v};`; });
+  if(style) destEl.setAttribute('style', style + (destEl.getAttribute('style')||''));
+  const srcChildren = srcEl.children;
+  const destChildren = destEl.children;
+  for(let i=0;i<srcChildren.length;i++){
+    inlineComputedStyles(srcChildren[i], destChildren[i]);
+  }
+}
+
+function svgToPngImage(svgEl, w, h){
+  return new Promise((resolve,reject)=>{
+    w = Math.max(1, Math.round(w));
+    h = Math.max(1, Math.round(h));
+    const clone = svgEl.cloneNode(true);
+    inlineComputedStyles(svgEl, clone);
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    if(!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const xml = new XMLSerializer().serializeToString(clone);
+    const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w * 2; canvas.height = h * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2,2);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      const out = new Image();
+      out.onload = () => resolve({img: out, w, h});
+      out.onerror = reject;
+      out.src = canvas.toDataURL('image/png');
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   IMAGE-EXPORT STYLE SETTINGS — tweak these to change the exported PNG.
+
+   All sizes are px of the export layout (the card is laid out `width` px
+   wide, then rendered at width × pixelRatio actual image pixels).
+
+   - width          : exported image width. The height follows the chart
+                      body's on-screen aspect ratio automatically.
+   - pixelRatio     : resolution multiplier for the final PNG (2 = retina).
+                      Changes sharpness/file size, not layout proportions.
+   - titleFontSize  : the blue title in the header.
+   - logoWidth      : Kiel logo width in the top-right corner.
+   - headerPadding  : CSS padding of the header block. The 2nd value (right
+                      padding, 380px) must stay wide enough that the title
+                      doesn't run underneath the logo.
+   - footerFontSize / footerPadding : the "Data source: …" note at the bottom.
+   - chartBottomTrim: px of the rasterized chart cropped off its bottom edge.
+                      renderChart()'s pad.b reserves far more room under the
+                      zero baseline than the one-line region names need — it is
+                      sized so the baseline lines up with de_total_allocations.html
+                      when the two cards sit side by side, and to clear the
+                      footer icon cluster. The export drops both constraints, so
+                      that reserve would otherwise show up as dead space between
+                      the x-axis labels and the data-source note.
+
+   The chart itself needs no export sizes: every mark and every label lives
+   inside one SVG, so rasterizing that SVG at export width scales the bars,
+   axes and value labels together and keeps the live proportions.
+   ═════════════════════════════════════════════════════════════════════ */
+const EXPORT_STYLE = {
+  width:            1600,
+  pixelRatio:       2,
+  titleFontSize:    68,
+  logoWidth:        340,
+  headerPadding:    '20px 380px 16px 22px',
+  footerFontSize:   30,
+  footerPadding:    '16px 22px',
+  chartBottomTrim:  110,
+};
+
+async function copyChartAsImage(){
+  const panel = document.getElementById('explorer-wrap');
+  if(!panel) return;
+
+  const EXPORT_W = EXPORT_STYLE.width;
+
+  const card = document.createElement('div');
+  card.style.cssText = `position:fixed;left:-99999px;top:0;width:${EXPORT_W}px;background:#f6f1e7;font-family:${getComputedStyle(document.body).fontFamily};color:#1a1a1a;`;
+
+  const header = document.createElement('div');
+  header.style.cssText = `position:relative;padding:${EXPORT_STYLE.headerPadding};min-height:150px;box-sizing:border-box;display:flex;align-items:center;`;
+  header.innerHTML = `
+    <div style="font-size:${EXPORT_STYLE.titleFontSize}px;font-weight:700;line-height:1.25;color:#174abb;">${document.querySelector('.chart-title').textContent}</div>
+  `;
+  const logoWrap = document.createElement('div');
+  logoWrap.style.cssText = `position:absolute;top:20px;right:22px;width:${EXPORT_STYLE.logoWidth}px;display:flex;align-items:center;`;
+  const logoImg = document.querySelector('.kiel-logo img');
+  const logoClone = logoImg.cloneNode(true);
+  logoClone.style.cssText = 'width:100%;height:auto;display:block;';
+  logoWrap.appendChild(logoClone);
+  header.appendChild(logoWrap);
+
+  const panelClone = panel.cloneNode(true);
+  panelClone.querySelectorAll('.chart-header, .chart-controls, .footer-icons').forEach(el=>el.remove());
+  panelClone.style.border = 'none';
+  panelClone.style.borderRadius = '0';
+  panelClone.style.boxShadow = 'none';
+  panelClone.style.transform = 'none';
+  panelClone.style.width = EXPORT_W + 'px';
+  /* .explorer-wrap has a fixed height in its own stylesheet rule for the live
+     on-screen card; that still applies to the clone via the shared class and
+     would clip the export to that height regardless of content. */
+  panelClone.style.height = 'auto';
+  panelClone.style.overflow = 'visible';
+
+  const panelRect = panel.getBoundingClientRect();
+  const scale = EXPORT_W / panelRect.width;
+
+  /* .bar-body is flex:1, filling whatever height is left over after its flex
+     siblings. Removing .chart-header/.footer-icons above frees up that space,
+     which flex:1 would hand straight to bar-body instead — let the rasterized
+     chart define the height instead, and scale the live padding with the card
+     so the plot keeps the same margins it has on screen. The live bottom
+     padding only exists to clear the footer icon cluster, which the export
+     drops, so it reverts to the (small) top value. */
+  const liveBarBody = panel.querySelector('.bar-body');
+  const clonedBarBody = panelClone.querySelector('.bar-body');
+  /* getComputedStyle reports unscaled layout px, while `scale` above is derived
+     from getBoundingClientRect (visual px) — padding has to be scaled by the
+     layout ratio instead, or it comes out wrong whenever the live card is
+     being displayed at anything other than its 565px layout width. */
+  const livePad = getComputedStyle(liveBarBody);
+  const layoutScale = EXPORT_W / (panel.offsetWidth || panelRect.width);
+  const scaledPad = v => Math.round(parseFloat(v) * layoutScale) + 'px';
+  clonedBarBody.style.flex = 'none';
+  clonedBarBody.style.height = 'auto';
+  clonedBarBody.style.padding = [
+    scaledPad(livePad.paddingTop), scaledPad(livePad.paddingRight),
+    scaledPad(livePad.paddingTop), scaledPad(livePad.paddingLeft)
+  ].join(' ');
+
+  const panelWrap = document.createElement('div');
+  panelWrap.style.cssText = `position:relative;width:${EXPORT_W}px;overflow:visible;background:#f6f1e7;`;
+  panelWrap.appendChild(panelClone);
+
+  const footer = document.createElement('div');
+  footer.style.cssText = `padding:${EXPORT_STYLE.footerPadding};font-size:${EXPORT_STYLE.footerFontSize}px;line-height:1.5;border-top:1px solid #ddd6c8;`;
+  footer.innerHTML = `<strong>Datenquelle:</strong> Kiel Institut für Weltwirtschaft – ${RELEASE_LABEL}`;
+
+  card.appendChild(header);
+  card.appendChild(panelWrap);
+  card.appendChild(footer);
+  document.body.appendChild(card);
+
+  try{
+    const clonedSvgs = panelWrap.querySelectorAll('svg');
+    for(const svg of clonedSvgs){
+      const liveSvg = svg.id ? panel.querySelector('#'+CSS.escape(svg.id)) : null;
+      if(!liveSvg) continue;
+      const rect = liveSvg.getBoundingClientRect();
+      if(rect.width < 1 || rect.height < 1) continue;
+      const targetW = rect.width*scale, targetH = rect.height*scale;
+      try{
+        const {img} = await svgToPngImage(liveSvg, targetW, targetH);
+        img.style.cssText = svg.getAttribute('style') || '';
+        img.style.width = Math.round(targetW) + 'px';
+        img.style.height = Math.round(targetH) + 'px';
+        img.style.display = 'block';
+        if(svg.getAttribute('class')) img.className = svg.getAttribute('class');
+        /* Crop the chart's unused bottom reserve (see chartBottomTrim) by
+           dropping the raster into a shorter clipping box, so the image keeps
+           its scale and only loses empty surface under the x-axis labels. */
+        const trim = svg.id === 'bar-svg' ? EXPORT_STYLE.chartBottomTrim : 0;
+        if(trim > 0 && targetH - trim > 40){
+          const clip = document.createElement('div');
+          clip.style.cssText = `width:${Math.round(targetW)}px;height:${Math.round(targetH - trim)}px;overflow:hidden;`;
+          clip.appendChild(img);
+          svg.replaceWith(clip);
+        }else{
+          svg.replaceWith(img);
+        }
+      }catch(e){ /* leave the original svg if rasterizing fails */ }
+    }
+
+    const canvas = await html2canvas(card, {backgroundColor:'#f6f1e7', scale:EXPORT_STYLE.pixelRatio, useCORS:true});
+    await new Promise((resolve,reject)=>{
+      canvas.toBlob(async blob=>{
+        if(!blob){ reject(new Error('toBlob failed')); return; }
+        try{
+          await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+          resolve();
+        }catch(err){
+          try{
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'ust_zuweisungen_nach_region.png'; a.click();
+            URL.revokeObjectURL(url);
+            resolve();
+          }catch(e2){ reject(e2); }
+        }
+      }, 'image/png');
+    });
+    showCopyToast('Bild des Diagramms kopiert!');
+  }catch(err){
+    showCopyToast('Bild konnte nicht kopiert werden');
+  }finally{
+    document.body.removeChild(card);
+  }
+}
+
+document.getElementById('opt-image').addEventListener('click', () => {
+  document.getElementById('share-dropdown').classList.remove('open');
+  document.getElementById('region-dropdown').classList.remove('open');
+  document.getElementById('info-overlay').classList.remove('open');
+  document.getElementById('info-modal').classList.remove('open');
+  copyChartAsImage();
+});
+
+/* ════════════════════════════════════
+   INFO MODAL
+════════════════════════════════════ */
+(function(){
+  const overlay = document.getElementById('info-overlay');
+  const modal = document.getElementById('info-modal');
+  const bodyEl = document.getElementById('info-body');
+
+  function openInfoModal(){
+    let html = '';
+    /* the regions currently ticked in the controls bar, in bar order */
+    const regionTags = REGION_ORDER.filter(r => activeRegions.has(r));
+    html += `<div class="info-tag-row">
+      ${regionTags.map(r => `<span class="info-tag">${r}</span>`).join('')}
+      <span class="info-tag">Jan. 2022–Apr. 2026</span>
+    </div>`;
+    html += `<p><strong>Gesamtzuweisungen nach Geberregion</strong> fasst die kumulierten bilateralen staatlichen Hilfszuweisungen an die Ukraine sowie die Zuweisungen der EU-Institutionen zu Geberregionen zusammen.</p>`;
+    html += `<p class="info-def"><strong>EU-Institutionen</strong> umfasst Hilfen, die von den Organen der Europäischen Union selbst bereitgestellt und aus dem EU-Haushalt sowie gemeinsamen Instrumenten wie der Makrofinanzhilfe, der Ukraine-Fazilität und der Europäischen Friedensfazilität finanziert werden.</p>`;
+    html += `<p class="info-def"><strong>Kontinentaleuropa</strong> umfasst die bilateralen Hilfen einzelner europäischer Regierungen, einschließlich der Nicht-EU-Geber wie Vereinigtes Königreich, Norwegen, Schweiz und Island.</p>`;
+    html += `<p>Nicht enthalten sind private Spenden, Unterstützung für Geflüchtete außerhalb der Ukraine sowie Hilfen internationaler Organisationen. Die Werte sind in jeweiligen Euro angegeben.</p>`;
+    html += `<div class="info-source"><strong>Datenquelle:</strong> Kiel Institut für Weltwirtschaft – ${RELEASE_LABEL}</div>`;
+    bodyEl.innerHTML = html;
+    overlay.classList.add('open');
+    modal.classList.add('open');
+  }
+  function closeInfoModal(){
+    overlay.classList.remove('open');
+    modal.classList.remove('open');
+  }
+  document.getElementById('info-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    if(modal.classList.contains('open')) closeInfoModal(); else openInfoModal();
+  });
+  overlay.addEventListener('click', closeInfoModal);
+  document.getElementById('info-close').addEventListener('click', closeInfoModal);
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && modal.classList.contains('open')) closeInfoModal();
+  });
+})();
+
+/* ════════════════════════════════════
+   RESPONSIVE REFLOW
+
+   The card fills 100% of the iframe in both axes (see .explorer-wrap), so it
+   can never leave a margin no matter what size the embed gives it. Two jobs
+   remain:
+
+     1. Re-render the chart whenever our box changes size, so the SVG is drawn
+        at real pixel dimensions rather than being zoomed. A ResizeObserver on
+        the wrap catches every case — window resize, iframe resize, and a
+        parent that resizes us in response to (2).
+
+     2. Suggest a height to the parent. This is only a HINT for embedders who
+        opt in to auto-sizing; the page renders correctly at whatever height
+        it is actually given, so an embedder may equally ignore it and pick a
+        fixed height. The hint keeps the card's original 565:496 proportions,
+        clamped so it never becomes a sliver or absurdly tall.
+════════════════════════════════════ */
+(function setupResponsiveReflow(){
+  const ASPECT = 496 / 565;      // original card proportions
+  const MIN_H = 360, MAX_H = 900;
+  const wrap = document.getElementById('explorer-wrap');
+  if(!wrap) return;
+
+  let lastSent = 0;
+  function suggestHeight(){
+    if(window.parent === window) return;
+    const w = wrap.clientWidth;
+    if(!w) return;
+    const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)));
+    if(h === lastSent) return;        // avoid a resize<->postMessage feedback loop
+    lastSent = h;
+    window.parent.postMessage({type:'ust-allocations-by-region-height', height:h}, '*');
+  }
+
+  function onResize(){
+    if(typeof renderChart === 'function') renderChart();
+    suggestHeight();
+  }
+
+  /* A ResizeObserver on the wrap already covers window resize (the wrap is
+     100% of the page), so only fall back to a window listener without it. */
+  if(typeof ResizeObserver !== 'undefined'){
+    new ResizeObserver(onResize).observe(wrap);
+  } else {
+    window.addEventListener('resize', onResize);
+  }
+  suggestHeight();
+})();
+</script>
+</body>
+</html>

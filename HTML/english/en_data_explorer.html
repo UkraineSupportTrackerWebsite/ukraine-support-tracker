@@ -1,0 +1,3923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ukraine Support Tracker – Data Explorer</title>
+  <style>
+    :root {
+      --font: Arial, sans-serif;
+      --font-serif: Arial, sans-serif;
+      --black: #1a1a1a;
+      --mid: #6b6b6b;
+      --light: #e8e8e8;
+      --border: #d0d0d0;
+      --bg: #f6f1e7;
+      --blue: #3a6dc5;
+      --blue-dark: #1a3e8a;
+      --tab-active: #3a6dc5;
+      --mil: #3a5da8;
+      --fin: #6a9bd8;
+      --hum: #a8c4e8;
+
+      /* ── DATA VIEW: left/right cell spacing ──────────────────
+         Edit --tbl-pad-x-normal for windowed mode and
+         --tbl-pad-x-fullscreen for fullscreen mode independently.
+         (See .explorer-wrap:fullscreen override below.) */
+      --tbl-pad-x-normal: 0.85rem;
+      --tbl-pad-x-fullscreen: 0.85rem;
+      --tbl-pad-x: var(--tbl-pad-x-normal);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
+    a { color: inherit; text-decoration: none; }
+
+    /* ── SCALE CONTAINER ───────────────────────────────────────
+       Reserves exactly as much vertical space as the scaled-down
+       explorer needs, so the page doesn't leave a gap or clip it. */
+    .explorer-scale-container {
+      width: 100%;
+      max-width: 1288px;
+      margin: 0 auto;
+      overflow: hidden;
+      /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
+      background: #f6f1e7;
+    }
+
+    /* ── OUTER WRAPPER ───────────────────────────────────────
+       Fixed pixel size always — never reflows internally. JS scales
+       this whole box up or down (transform: scale) to match the
+       available width, exactly like a raster image would resize,
+       instead of letting its contents reflow/wrap. */
+    .explorer-wrap {
+      display: flex;
+      width: 1155px;
+      height: 730px;
+      border: 1px solid #ddd6c8;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #f6f1e7;
+      /* No drop shadow here: the card fills the whole iframe viewport, so the
+         shadow had nowhere to fall and only smudged grey into the rounded
+         corner cut-outs. The shadow now lives on the <iframe> in en_index.html. */
+      transform-origin: top left;
+      outline: none;
+    }
+
+    /* ── FLUID (STANDALONE) MODE ──────────────────────────────
+       Only when the page is opened directly in its own window/tab
+       (html.fluid, set below — never inside the index page's iframe).
+       Embedded, the explorer keeps its fixed 1155×730 aspect and is
+       uniformly scaled to the iframe width, exactly as before.
+
+       Standalone, the widget instead fills the whole window in BOTH
+       axes, like every other chart page: the horizontal scale still
+       comes from the width (so text/geometry never distort), while
+       .explorer-wrap's own height is set in JS to whatever, once
+       scaled, exactly covers the window height. The internal flex
+       layout then reflows vertically (map/globe/line/bar/table panels
+       are all flex:1), so no letterboxing above or below. */
+    html.fluid, html.fluid body { height: 100%; }
+    html.fluid .explorer-scale-container {
+      max-width: none;
+      height: 100%;
+      margin: 0;
+    }
+
+    /* ── LEFT PANEL ─────────────────────────────────────────── */
+    .left-panel {
+      width: 200px;
+      flex-shrink: 0;
+      border-right: 1px solid #ddd6c8;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: #f6f1e7;
+    }
+    .left-header {
+      padding: 0.7rem 0.9rem 0.6rem;
+      border-bottom: 1px solid #ddd6c8;
+      background: #f6f1e7;
+      height: 90px;
+      box-sizing: border-box;
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .left-header h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #174abb;
+      margin-bottom: 0;
+      line-height: 1.2;
+    }
+    .left-header p {
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: var(--black);
+      line-height: 1.5;
+    }
+
+    /* search box */
+    .left-search {
+      padding: 0.6rem 0.9rem 0.5rem;
+      border-bottom: 1px solid #ddd6c8;
+      background: #f6f1e7;
+    }
+    .left-search-box {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.3rem 0.5rem;
+      background: #f6f1e7;
+    }
+    .left-search-box svg { width: 12px; height: 12px; color: #aaa; flex-shrink: 0; }
+    .left-search-box input {
+      border: none; background: transparent;
+      font-family: var(--font); font-size: 0.75rem; color: var(--black);
+      outline: none; width: 100%;
+    }
+    .left-search-box input::placeholder { color: #bbb; }
+
+    /* sort row */
+    .left-sort {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.4rem 0.7rem;
+      border-bottom: 1px solid #ddd6c8;
+      font-size: 0.85rem;
+      color: var(--mid);
+      background: #f6f1e7;
+    }
+    .left-sort label { white-space: nowrap; }
+    .sort-custom {
+      position: relative;
+      flex: 1;
+    }
+    .sort-custom-btn {
+      width: 100%;
+      display: flex; align-items: center; justify-content: space-between; gap: 0.3rem;
+      font-family: var(--font); font-size: 0.85rem;
+      border: 1px solid var(--border); border-radius: 3px;
+      padding: 0 0.4rem 0 0.45rem;
+      height: 26px;
+      background: #f6f1e7; color: var(--black);
+      cursor: pointer; white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-btn:hover { background: #ede8de; }
+    .sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
+    .sort-custom-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 3px); left: 0;
+      min-width: 100%;
+      background: #f6f1e7;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 100;
+      overflow: hidden;
+    }
+    .sort-custom-dropdown.open { display: block; }
+    .sort-custom-option {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.3rem 0.6rem;
+      font-family: var(--font); font-size: 0.82rem;
+      color: var(--black); cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s;
+    }
+    .sort-custom-option:hover { background: #ede8de; }
+    .sort-custom-option.active { font-weight: 600; background: #d6e4f5; }
+    .sort-dir-btn {
+      width: 26px; height: 26px; border-radius: 3px; border: 1px solid var(--border);
+      background: #f6f1e7; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; color: var(--mid); flex-shrink: 0;
+    }
+    .sort-dir-btn:hover { background: var(--light); }
+
+    /* country list */
+    .left-list {
+      flex: 1;
+      overflow-y: auto;
+      background: #f6f1e7;
+    }
+    .country-item {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.9rem;
+      font-size: 0.87rem;
+      cursor: pointer;
+      transition: background 0.08s;
+    }
+    .country-item:hover { background: #ede8de; }
+    .country-item.selected {
+      font-weight: 500;
+      color: #ff6b00;
+    }
+    .country-item input[type="checkbox"] {
+      appearance: none; -webkit-appearance: none;
+      width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
+      border: 1.5px solid #b0a898; border-radius: 2px;
+      background: #f6f1e7;
+      transition: border-color 0.1s;
+    }
+    .country-item input[type="checkbox"]:checked {
+      border-color: #ff6b00;
+      background: #ff6b00;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13'%3E%3Cpath d='M2.5 6.5l3 3 5-5' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+      background-size: 100% 100%;
+    }
+    .country-item span { line-height: 1.3; }
+    .aggregate-divider {
+      height: 1px;
+      background-image: repeating-linear-gradient(to right, #b0a898 0, #b0a898 1.5px, transparent 1.5px, transparent 5px);
+      margin: 0.3rem 0.9rem 0.35rem;
+    }
+    .aggregate-toggle .agg-caret {
+      flex-shrink: 0;
+      opacity: 0.55;
+      transition: transform 0.15s;
+    }
+    .aggregate-toggle.open .agg-caret { transform: rotate(180deg); }
+
+    /* clear button */
+    .left-clear {
+      border-top: 1px solid #ddd6c8;
+      background: #f6f1e7;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+    }
+    .left-clear span {
+      color: var(--blue);
+      cursor: pointer;
+      font-size: 0.9rem;
+      line-height: 1;
+    }
+    .left-clear span:hover { text-decoration: underline; }
+
+    /* ── RIGHT PANEL ─────────────────────────────────────────── */
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+      background: #f6f1e7;
+    }
+
+    /* metric selector bar (aligns with left-header) */
+    .map-metric-bar {
+      padding: 0.55rem 1.1rem 0.45rem;
+      border-bottom: 1px solid #ddd6c8;
+      position: relative;
+      flex-shrink: 0;
+      background: #f6f1e7;
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    .map-metric-label {
+      font-size: 0.7rem;
+      color: var(--mid);
+      margin-right: 0.55rem;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .map-metric-toggle {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .map-metric-toggle button {
+      padding: 0.22rem 0.7rem;
+      font-family: var(--font);
+      font-size: 0.72rem;
+      background: #f6f1e7;
+      color: var(--mid);
+      border: none;
+      cursor: pointer;
+      border-right: 1px solid var(--border);
+      transition: background 0.1s, color 0.1s;
+      white-space: nowrap;
+    }
+    .map-metric-toggle button:last-child { border-right: none; }
+    .map-metric-toggle button.active {
+      background: var(--black);
+      color: #fff;
+      font-weight: 500;
+    }
+    .map-metric-toggle button:not(.active):hover { background: #ede8de; color: var(--black); }
+    /* Kiel logo top-right of chart header */
+    .kiel-logo {
+      position: absolute;
+      top: 17px; right: 17px; bottom: 17px;
+      line-height: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+    }
+    .kiel-logo img { height: 56px; width: auto; display: block; }
+
+    /* chart title area */
+    .chart-header {
+      padding: 0.45rem 1.1rem 0.6rem;
+      padding-right: 160px;
+      border-bottom: 1px solid #ddd6c8;
+      position: relative;
+      flex-shrink: 0;
+      background: #f6f1e7;
+      min-height: 90px;
+      box-sizing: border-box;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    .chart-title {
+      font-family: var(--font-serif);
+      font-size: 1.78rem;
+      font-weight: 700;
+      line-height: 1.25;
+      color: #174abb;
+      margin-bottom: 0rem;
+    }
+    .chart-subtitle {
+      font-size: 0.9rem;
+      color: var(--black);
+      line-height: 1.5;
+      max-width: 780px;
+    }
+
+    /* ── TAB BAR ──────────────────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      padding: 0 1.1rem;
+      border-bottom: 1px solid #ddd6c8;
+      gap: 0;
+      flex-shrink: 0;
+      background: #f6f1e7;
+    }
+    .tab-btn {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.65rem 1rem;
+      font-size: 0.92rem; font-family: var(--font); font-weight: 400;
+      color: var(--mid);
+      background: none; border: none; border-bottom: 2.5px solid transparent;
+      cursor: pointer; white-space: nowrap;
+      margin-bottom: -1px;
+      transition: color 0.1s;
+    }
+    .tab-btn:hover { color: var(--black); }
+    .tab-btn.active { color: var(--black); font-weight: 500; border-bottom-color: var(--tab-active); }
+    .tab-btn svg { width: 16px; height: 16px; }
+
+
+
+    /* ── PANEL COMMON ─────────────────────────────────────── */
+    .panel { display: none; flex: 1; flex-direction: column; overflow: hidden; min-height: 0; background: #f6f1e7; }
+    .panel.active { display: flex; }
+
+    /* ── TABLE PANEL ──────────────────────────────────────── */
+    .tbl-unit-label {
+      padding: 0.35rem 1.1rem 0.2rem;
+      font-size: 0.72rem;
+      color: var(--mid);
+      border-bottom: 1px solid #ddd6c8;
+      flex-shrink: 0;
+    }
+    .tbl-unit-label strong { color: var(--black); }
+    .tbl-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
+    .data-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 0.78rem; font-family: var(--font);
+    }
+    .data-table thead { position: sticky; top: 0; z-index: 5; background: #f6f1e7; }
+    .data-table th {
+      padding: 0.45rem var(--tbl-pad-x);
+      text-align: left; font-weight: 500; font-size: 0.72rem; color: var(--mid);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap; cursor: pointer; user-select: none;
+    }
+    .data-table th:hover { color: var(--black); }
+    .data-table th.num { text-align: right; }
+    .sort-arrow { margin-left: 2px; opacity: 0.5; font-size: 0.62rem; }
+    .data-table td {
+      padding: 0.38rem var(--tbl-pad-x);
+      border-bottom: 1px solid #ddd6c8;
+      color: var(--black);
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: #ede8de; }
+    .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .data-table tr.highlighted td { background: #f7cfae; }
+
+    /* ── MAP PANEL ────────────────────────────────────────── */
+    #panel-map { background: #f6f1e7; position: relative; flex-direction: column; overflow: hidden; min-height: 0; }
+    .map-svg-wrap { flex: 1; min-height: 0; position: relative; overflow: hidden; background: #f6f1e7; }
+    #choropleth-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; background: #f6f2e8; }
+    /* all world countries default cream — JS overrides with data colors */
+    .choro-bg    { fill: url(#hatch); stroke: #9a9590; stroke-width: 0.4px; }
+    .choro-country { stroke: #9a9590; stroke-width: 0.6px; cursor: pointer; transition: opacity .12s; }
+    .choro-country:hover { opacity: 0.78; }
+
+    .globe-country { cursor: pointer; transition: filter .12s; }
+    .globe-country:hover { filter: brightness(0.96); }
+
+    .map-legend {
+      flex-shrink: 0;
+      display: flex; align-items: flex-start; gap: 0.5rem;
+      padding: 0.35rem 1.1rem 0.4rem;
+      font-size: 0.75rem; color: var(--mid);
+      background: #f6f1e7;
+    }
+    .legend-nodata-swatch {
+      width: 30px; height: 13px; flex-shrink: 0; margin-top: 0;
+      background-color: #f6f2e8;
+      background-image: radial-gradient(circle, #d8d3cb 0.5px, transparent 0.5px);
+      background-size: 6px 6px; border: 1px solid #d0ccc4;
+    }
+    #legend-canvas { height: 13px; flex: 1; }
+    .legend-ticks {
+      display: flex; justify-content: space-between;
+      font-size: 0.75rem; color: #777; background: #f6f1e7;
+    }
+
+    /* map tooltip */
+    #map-tooltip {
+      position: fixed; pointer-events: none;
+      background: #f6f1e7; border: 1px solid #ccc; border-radius: 4px;
+      padding: 0.6rem 0.9rem; font-family: var(--font); font-size: 0.8rem;
+      line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,0.13);
+      width: 270px; display: none; z-index: 2000;
+    }
+    #map-tooltip .tt-name { font-weight: 600; font-size: 1.196rem; margin-bottom: 0.0rem; }
+    #map-tooltip .tt-val { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.0rem; line-height: 1.1; }
+
+    /* timeline */
+    .timeline-bar {
+      flex-shrink: 0; display: flex; align-items: center; gap: 0.65rem;
+      padding: 0.45rem 1.1rem; border-top: 1px solid #ddd6c8;
+      font-size: 0.75rem; color: var(--mid);
+    }
+    .play-btn {
+      width: 24px; height: 24px; border-radius: 50%;
+      border: 1.5px solid #999; background: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .play-btn:hover { border-color: var(--black); }
+    .play-btn svg { width: 8px; height: 8px; }
+    .tl-track {
+      flex: 1; position: relative; height: 3px; background: #ddd;
+      border-radius: 2px; cursor: pointer;
+    }
+    .tl-fill { position: absolute; left: 0; top: 0; height: 100%; background: #888; border-radius: 2px; pointer-events: none; }
+    .tl-thumb {
+      position: absolute; top: 50%; transform: translate(-50%,-50%);
+      width: 9px; height: 9px; border-radius: 50%;
+      background: #333; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .tl-thumb-left {
+      position: absolute; top: 50%; left: 0; transform: translate(-50%,-50%);
+      width: 9px; height: 9px; border-radius: 50%;
+      background: #333; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .tl-year { font-size: 0.7rem; color: var(--mid); flex-shrink: 0; }
+    .tl-tick-label {
+      position: absolute; top: 5px;
+      transform: translateX(-50%);
+      font-family: Arial, sans-serif; font-size: 0.75rem;
+      color: #999; pointer-events: none; white-space: nowrap;
+    }
+
+    /* ── LINE PANEL ──────────────────────────────────────── */
+    .line-controls {
+      flex-shrink: 0; padding: 0.55rem;
+      background: #f6f2e8;
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.72rem; color: var(--mid);
+    }
+    .line-controls select {
+      font-family: var(--font); font-size: 0.72rem;
+      border: 1px solid var(--border); border-radius: 3px;
+      padding: 0.22rem 0.45rem; background: #f6f1e7; color: var(--black);
+    }
+    .line-chart-wrap { flex: 1; padding: 3rem 0rem 0.4rem; overflow: hidden; }
+    #line-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+    .line-legend {
+      flex-shrink: 0; display: flex; flex-wrap: wrap;
+      gap: 0.3rem 1.1rem; padding: 0rem 1.1rem 0.55rem;
+      font-size: 0.82rem;
+    }
+    .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+    .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── BAR PANEL ───────────────────────────────────────── */
+    /* scrollbar-gutter keeps clientWidth identical with and without the scrollbar — renderBar
+       measures the width while the SVG is empty, so a scrollbar appearing afterwards would
+       otherwise leave the SVG a few px too wide and clip the value labels on the right. */
+    .bar-chart-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 1.1rem; scrollbar-gutter: stable; }
+    .bar-chart-wrap::-webkit-scrollbar { width: 5px; }
+    .bar-chart-wrap::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    #bar-svg { display: block; }
+
+    /* ── BOTTOM FOOTER ───────────────────────────────────── */
+    .chart-footer {
+      flex-shrink: 0;
+      padding: 0.5rem 1.1rem;
+      border-top: 1px solid #ddd6c8;
+      font-size: 0.75rem;
+      background: #f6f1e7;
+      color: var(--mid);
+      line-height: 1.6;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .chart-footer a { text-decoration: underline; text-underline-offset: 2px; }
+    .footer-icons {
+      display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
+    }
+    .footer-icon-btn {
+      width: 30px; height: 30px; border-radius: 3px;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    .footer-icon-btn:hover { background: var(--light); color: var(--black); }
+    .footer-icon-btn svg { width: 14px; height: 14px; }
+
+    /* share dropdown */
+    .share-wrap { position: relative; }
+    .share-dropdown {
+      display: none; position: absolute; right: 0; bottom: 110%;
+      background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
+    }
+    .share-dropdown.open { display: block; }
+    .share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
+    .share-option {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
+    }
+    .share-option:hover { background: #ede8de; }
+    .share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
+
+    /* fullscreen */
+    .chart-footer-left { flex: 1; }
+    .explorer-wrap:-webkit-full-screen { max-width: 100%; margin: 0; height: 100vh; font-size: 24.25px; zoom: 1.0965375; --tbl-pad-x: var(--tbl-pad-x-fullscreen); }
+    .explorer-wrap:fullscreen { max-width: 100%; margin: 0; height: 100vh; font-size: 24.25px; zoom: 1.0965375; --tbl-pad-x: var(--tbl-pad-x-fullscreen); }
+    .explorer-wrap:-webkit-full-screen .map-svg-wrap { max-height: calc(100vw * 420 / 960); }
+    .explorer-wrap:fullscreen .map-svg-wrap { max-height: calc(100vw * 420 / 960); }
+    .explorer-wrap:-webkit-full-screen #globe-wrap { max-height: calc(100vw * 420 / 960); }
+    .explorer-wrap:fullscreen #globe-wrap { max-height: calc(100vw * 420 / 960); }
+    .explorer-wrap:-webkit-full-screen .line-chart-wrap { padding-left: 4vw; padding-right: 4vw; }
+    .explorer-wrap:fullscreen .line-chart-wrap { padding-left: 4vw; padding-right: 4vw; }
+
+    /* copy toast */
+    #copy-toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: #222; color: #fff; font-size: 0.76rem;
+      padding: 0.45rem 1rem; border-radius: 4px;
+      opacity: 0; transition: opacity 0.25s; pointer-events: none;
+      z-index: 9999; font-family: var(--font);
+    }
+    #copy-toast.show { opacity: 1; }
+
+    /* ── Download Modal ── */
+    #dl-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.18); z-index: 3000;
+    }
+    #dl-overlay.open { display: block; }
+    #dl-modal {
+      display: none; position: fixed; z-index: 3001;
+      left: 50%; top: 50%; transform: translate(-50%,-50%);
+      background: #f6f1e7; border: 1px solid #ddd6c8;
+      border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      width: 420px; max-width: calc(100vw - 2rem);
+      padding: 1.1rem 1.3rem 0.9rem;
+      font-family: var(--font);
+    }
+    #dl-modal.open { display: block; }
+    #dl-question {
+      font-size: 1.15rem; font-weight: 700;
+      color: #ff6b00; margin-bottom: 0.85rem;
+      line-height: 1.3;
+    }
+    .dl-option {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.55rem 0.7rem; border-radius: 4px;
+      cursor: pointer; transition: background 0.1s;
+      border: 1px solid transparent;
+    }
+    .dl-option:hover { background: #ede8de; border-color: #ddd6c8; }
+    .dl-option svg { width: 22px; height: 22px; flex-shrink: 0; }
+    .dl-option-title { font-size: 0.82rem; font-weight: 600; color: var(--black); }
+    .dl-option-sub { font-size: 0.72rem; color: var(--mid); margin-top: 0.1rem; }
+    #dl-close {
+      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    #dl-close:hover { background: var(--light); color: var(--black); }
+    #dl-close svg { width: 13px; height: 13px; }
+
+    /* ── Info Modal ── */
+    #info-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.32); z-index: 3000;
+    }
+    #info-overlay.open { display: block; }
+    #info-modal {
+      display: none; position: fixed; z-index: 3001;
+      left: 50%; top: 50%; transform: translate(-50%,-50%);
+      background: #f6f1e7; border: 1px solid #ddd6c8;
+      border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+      width: 500px; max-width: calc(100vw - 3rem);
+      max-height: calc(100vh - 4rem);
+      font-family: var(--font);
+    }
+    #info-modal.open { display: block; }
+    #info-modal-inner {
+      padding: 1rem;
+      max-height: calc(100vh - 4rem);
+      overflow-y: auto;
+    }
+    #info-modal-inner::-webkit-scrollbar { width: 5px; }
+    #info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    #info-close {
+      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1px solid var(--border); background: #f6f1e7;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--mid); transition: background 0.1s;
+    }
+    #info-close:hover { background: var(--light); color: var(--black); }
+    #info-close svg { width: 13px; height: 13px; }
+    #info-eyebrow {
+      font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #ff6b00;
+      line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
+    }
+    #info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
+    #info-body h4 {
+      font-size: 0.74rem; font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: #194aba;
+      margin: 1.4rem 0 0.5rem;
+    }
+    #info-body h4:first-child { margin-top: 0; }
+    #info-body p { margin: 0 0 0.7rem; }
+    #info-body p:last-child { margin-bottom: 0; }
+    #info-body ul { margin: 0 0 0.7rem; padding-left: 1.2rem; }
+    #info-body li { margin-bottom: 0.3rem; }
+    #info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    #info-body .info-tag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      color: #fff; background: #688fdc;
+      border: 1px solid #688fdc; border-radius: 3px;
+      padding: 0.2rem 0.55rem;
+    }
+    #info-body .info-source {
+      margin-top: 1rem; padding-top: 0.7rem;
+      border-top: 1px solid #ddd6c8;
+      font-size: 0.75rem; color: var(--mid); line-height: 1.6;
+    }
+
+    /* region headers and divider */
+    .region-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px 4px;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #888;
+      cursor: pointer; user-select: none;
+    }
+    .region-header:not(:first-child) { margin-top: 6px; }
+    .region-header input[type="checkbox"] { flex-shrink: 0; cursor: pointer; }
+    .region-divider {
+      height: 1px; background: #ddd6c8;
+      margin: 8px 10px 6px;
+    }
+
+    /* scrollbar styling */
+    .tbl-scroll::-webkit-scrollbar, .left-list::-webkit-scrollbar { width: 5px; }
+    .tbl-scroll::-webkit-scrollbar-thumb, .left-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+
+    /* ── VIEW TOGGLE (Map / Globe) ───────────────────────── */
+    .view-toggle-wrap {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .view-toggle-label {
+      font-size: 0.65rem;
+      color: var(--mid);
+      white-space: nowrap;
+    }
+    .view-toggle {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .view-toggle button {
+      padding: 0.24rem 0.72rem;
+      font-family: Arial, sans-serif;
+      font-size: 0.95rem;
+      background: #f6f1e7;
+      color: var(--mid);
+      border: none;
+      border-right: 1px solid var(--border);
+      cursor: pointer;
+      display: flex; align-items: center; gap: 0.25rem;
+      transition: background 0.1s, color 0.1s;
+      white-space: nowrap;
+    }
+    .view-toggle button:last-child { border-right: none; }
+    .view-toggle button.active { background: var(--blue); color: #fff; font-weight: 500; }
+    .view-toggle button:not(.active):hover { background: #ede8de; color: var(--black); }
+    .view-toggle button svg { width: 14px; height: 14px; }
+    #view-btn-globe { padding-left: 0.44rem; padding-right: 0.44rem; }
+
+    /* Globe container */
+    #globe-wrap {
+      display: none;
+      flex: 1;
+      position: relative;
+      background: #f6f2e8;
+      overflow: hidden;
+      cursor: grab;
+      min-height: 0;
+    }
+    #globe-wrap.active { display: flex; align-items: center; justify-content: center; }
+    #globe-wrap.dragging { cursor: grabbing; }
+    #globe-svg { display: block; max-width: 100%; max-height: 100%; }
+
+    /* zoom controls for map and globe */
+    .map-zoom-controls {
+      position: absolute;
+      top: calc(0.55rem + 32px + 0.55rem + 4px); right: 0.55rem;
+      display: flex; flex-direction: column; gap: 2px;
+      z-index: 10;
+    }
+    .map-zoom-btn {
+      width: 24px; height: 24px;
+      border: 1px solid var(--border); border-radius: 3px;
+      background: rgba(246,241,231,0.9); color: var(--mid);
+      font-size: 15px; line-height: 24px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      padding: 0; text-align: center;
+      font-family: Arial, sans-serif;
+      transition: background 0.1s;
+    }
+    .map-zoom-btn:hover { background: #ede8de; color: var(--black); }
+  </style>
+  <!-- Flag standalone (top-level) viewing before first paint, so the fluid
+       layout above applies from the very first frame instead of flashing the
+       fixed-aspect embed layout first. Inside en_index.html's iframe this class
+       is never added and nothing about the embed changes. -->
+  <script>
+    if (window.parent === window) document.documentElement.classList.add('fluid');
+  </script>
+</head>
+<body>
+
+<div class="explorer-scale-container" id="explorer-scale-container">
+<div class="explorer-wrap" id="explorer-wrap" tabindex="0">
+
+  <!-- ════════════ LEFT PANEL ════════════ -->
+  <div class="left-panel">
+    <div class="left-header">
+      <h2>Ukraine Support Tracker<br>Data Explorer</h2>
+    </div>
+
+    <div class="left-sort">
+      <label>Sort by</label>
+      <div class="sort-custom" id="sort-custom">
+        <button class="sort-custom-btn" id="sort-custom-btn" type="button">
+          <span id="sort-custom-label">Total allocations</span>
+          <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
+        </button>
+        <div class="sort-custom-dropdown" id="sort-custom-dropdown">
+          <div class="sort-custom-option" data-value="name">Name</div>
+          <div class="sort-custom-option active" data-value="total">Total allocations</div>
+          <div class="sort-custom-option" data-value="pct">Share of GDP</div>
+          <div class="sort-custom-option" data-value="fin">Financial Aid</div>
+          <div class="sort-custom-option" data-value="mil">Military Aid</div>
+          <div class="sort-custom-option" data-value="hum">Humanitarian Aid</div>
+        </div>
+      </div>
+      <button class="sort-dir-btn" id="left-sort-dir" title="Reverse sort">↓</button>
+    </div>
+
+    <div class="left-list" id="left-list"></div>
+
+    <div class="left-clear">
+      <span id="left-select-all">+ Select all</span>
+      <span id="left-clear"><span style="font-size:0.65rem">✕</span> Clear all</span>
+    </div>
+  </div>
+
+  <!-- ════════════ RIGHT PANEL ════════════ -->
+  <div class="right-panel">
+
+    <div class="chart-header">
+      <div class="chart-title" id="chart-title-text">Aid to Ukraine by Donor Country</div>
+      <div style="margin-top:0.3rem">
+        <div class="chart-subtitle" id="chart-subtitle">Total bilateral government aid allocations to Ukraine (military, financial, and humanitarian) in € billion.</div>
+        <div class="chart-subtitle" style="color:var(--mid);margin-top:0.1rem"><span id="year-label">Jan 2022–Apr 2026</span></div>
+      </div>
+      <div class="kiel-logo">
+        <img src="../../assets/Kiel Institut Logo.svg" alt="Kiel Institut" />
+      </div>
+    </div>
+
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+      <button class="tab-btn" data-tab="table">
+        <svg viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5h11M5 1.5v11" stroke="currentColor" stroke-width="1.1"/></svg>
+        Table
+      </button>
+      <button class="tab-btn active" data-tab="map">
+        <svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7 1.5C7 1.5 4.5 4 4.5 7s2.5 5.5 2.5 5.5M7 1.5C7 1.5 9.5 4 9.5 7S7 12.5 7 12.5M1.5 7h11" stroke="currentColor" stroke-width="1.1"/></svg>
+        Map
+      </button>
+      <button class="tab-btn" data-tab="line">
+        <svg viewBox="0 0 14 14" fill="none"><polyline points="1,11 4,7 7,9 10,4 13,5" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
+        Line
+      </button>
+      <button class="tab-btn" data-tab="bar">
+        <svg viewBox="0 0 14 14" fill="none"><rect x="1.5" y="7" width="3" height="5.5" rx="0.5" stroke="currentColor" stroke-width="1.1"/><rect x="5.5" y="4" width="3" height="8.5" rx="0.5" stroke="currentColor" stroke-width="1.1"/><rect x="9.5" y="1.5" width="3" height="11" rx="0.5" stroke="currentColor" stroke-width="1.1"/></svg>
+        Bar
+      </button>
+    </div>
+
+    <!-- ── TABLE ── -->
+    <div class="panel" id="panel-table">
+
+      <div class="tbl-scroll">
+        <table class="data-table" id="data-table">
+          <thead>
+            <tr>
+              <th data-col="country" style="min-width:160px">Country or region <span class="sort-arrow">↓</span></th>
+              <th data-col="tot" class="num">Total aid (€B) <span class="sort-arrow">↕</span></th>
+              <th data-col="spark" style="width:140px" id="th-spark">Total Aid Trend <span class="sort-arrow" style="opacity:0"></span></th>
+              <th data-col="pct" class="num">% of 2021 GDP <span class="sort-arrow">↕</span></th>
+              <th data-col="mil" class="num">Military (€B) <span class="sort-arrow">↕</span></th>
+              <th data-col="hum" class="num">Humanitarian (€B) <span class="sort-arrow">↕</span></th>
+              <th data-col="fin" class="num">Financial (€B) <span class="sort-arrow">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── MAP ── -->
+    <div class="panel active" id="panel-map">
+      <div class="line-controls" style="padding: 0.55rem; position:absolute; top:0; left:0; right:0; z-index:10; background:transparent; pointer-events:none;">
+        <div class="sort-custom" id="map-metric-custom" style="flex:none;pointer-events:auto;">
+          <button class="sort-custom-btn" id="map-metric-btn" type="button" style="height:auto;padding:0.46rem 0.86rem;font-size:0.98rem;">
+            <span id="map-metric-label">Total allocations</span>
+            <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
+          </button>
+          <div class="sort-custom-dropdown" id="map-metric-dropdown">
+            <div class="sort-custom-option active" data-value="total">Total allocations</div>
+            <div class="sort-custom-option" data-value="pct">Share of GDP</div>
+            <div class="sort-custom-option" data-value="fin">Financial Aid</div>
+            <div class="sort-custom-option" data-value="mil">Military Aid</div>
+            <div class="sort-custom-option" data-value="hum">Humanitarian Aid</div>
+          </div>
+        </div>
+        <div class="view-toggle-wrap" style="pointer-events:auto;">
+          <div class="view-toggle" id="view-toggle">
+            <button class="active" id="view-btn-map" title="Flat map view">
+              <svg viewBox="0 0 12 12" fill="none"><path d="M1 3l3.5-1.5 3.5 1.5 3-1.5v7.5L8.5 10.5 5 9 1 10.5V3z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><line x1="4.5" y1="1.5" x2="4.5" y2="9" stroke="currentColor" stroke-width="1.1"/><line x1="8.5" y1="3" x2="8.5" y2="10.5" stroke="currentColor" stroke-width="1.1"/></svg>
+              Map
+            </button>
+            <button id="view-btn-globe" title="3D globe view">
+              <svg viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.1"/><ellipse cx="6" cy="6" rx="2" ry="4.5" stroke="currentColor" stroke-width="0.9"/><line x1="1.5" y1="6" x2="10.5" y2="6" stroke="currentColor" stroke-width="0.9"/><line x1="1.5" y1="4" x2="10.5" y2="4" stroke="currentColor" stroke-width="0.7" stroke-dasharray="1.5 1"/><line x1="1.5" y1="8" x2="10.5" y2="8" stroke="currentColor" stroke-width="0.7" stroke-dasharray="1.5 1"/></svg>
+              Globe
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="map-zoom-controls" id="map-zoom-controls">
+        <button class="map-zoom-btn" id="map-zoom-in" title="Zoom in">+</button>
+        <button class="map-zoom-btn" id="map-zoom-out" title="Zoom out">−</button>
+        <button class="map-zoom-btn" id="map-zoom-reset" title="Reset zoom"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2.5v3.5h3.5"/><path d="M2.9 8.5a4.5 4.5 0 1 0 .8-4.3L2.5 6"/></svg></button>
+      </div>
+      <div class="map-svg-wrap" id="map-svg-wrap">
+        <svg id="choropleth-svg" viewBox="0 0 960 420" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <pattern id="hatch" patternUnits="userSpaceOnUse" width="6" height="6">
+              <rect width="6" height="6" fill="#f6f2e8"/>
+              <circle cx="3" cy="3" r="0.5" fill="#d8d3cb"/>
+            </pattern>
+          </defs>
+          <rect id="map-bg" x="0" y="0" width="960" height="500" fill="#f6f2e8"/>
+          <g id="map-g"></g>
+        </svg>
+      </div>
+      <div id="globe-wrap">
+        <svg id="globe-svg"></svg>
+      </div>
+      <div class="map-legend" id="map-legend" style="display:none">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0.15rem;flex-shrink:0;margin-right:0.5rem">
+          <div class="legend-nodata-swatch"></div>
+          <span style="white-space:nowrap">No data</span>
+        </div>
+        <div id="legend-bar-wrap" style="flex:1;display:flex;flex-direction:column;gap:0">
+          <canvas id="legend-canvas" style="display:block;width:100%;height:13px"></canvas>
+          <div id="legend-ticks" class="legend-ticks" style="padding:0.1rem 0 0"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LINE ── -->
+    <div class="panel" id="panel-line" style="position:relative;">
+      <div class="line-controls" style="padding: 0.55rem; position:absolute; top:0; left:0; right:0; z-index:10; background:transparent; pointer-events:none;">
+        <div class="sort-custom" id="line-metric-custom" style="flex:none;pointer-events:auto;">
+          <button class="sort-custom-btn" id="line-metric-btn" type="button" style="height:auto;padding:0.46rem 0.86rem;font-size:0.98rem;">
+            <span id="line-metric-label">Total allocations</span>
+            <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
+          </button>
+          <div class="sort-custom-dropdown" id="line-metric-dropdown">
+            <div class="sort-custom-option active" data-value="total">Total allocations</div>
+            <div class="sort-custom-option" data-value="pct">Share of GDP</div>
+            <div class="sort-custom-option" data-value="fin">Financial Aid</div>
+            <div class="sort-custom-option" data-value="mil">Military Aid</div>
+            <div class="sort-custom-option" data-value="hum">Humanitarian Aid</div>
+          </div>
+        </div>
+      </div>
+      <div class="line-chart-wrap">
+        <svg id="line-svg"></svg>
+      </div>
+      <div class="line-legend" id="line-legend"></div>
+    </div>
+
+    <!-- ── BAR ── -->
+    <div class="panel" id="panel-bar" style="position:relative;">
+      <div class="line-controls" style="padding: 0.55rem; position:absolute; top:0; left:0; right:0; z-index:10; background:transparent; pointer-events:none;">
+        <div class="sort-custom" id="bar-metric-custom" style="flex:none;pointer-events:auto;">
+          <button class="sort-custom-btn" id="bar-metric-btn" type="button" style="height:auto;padding:0.46rem 0.86rem;font-size:0.98rem;">
+            <span id="bar-metric-label">Total allocations</span>
+            <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
+          </button>
+          <div class="sort-custom-dropdown" id="bar-metric-dropdown">
+            <div class="sort-custom-option active" data-value="total">Total allocations</div>
+            <div class="sort-custom-option" data-value="alloc_commit">Allocations + Commitments</div>
+            <div class="sort-custom-option" data-value="pct">Share of GDP</div>
+            <div class="sort-custom-option" data-value="fin">Financial Aid</div>
+            <div class="sort-custom-option" data-value="mil">Military Aid</div>
+            <div class="sort-custom-option" data-value="hum">Humanitarian Aid</div>
+          </div>
+        </div>
+      </div>
+      <div style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column;">
+        <div class="bar-chart-wrap" id="bar-chart-scroll">
+          <svg id="bar-svg"></svg>
+        </div>
+        <div id="bar-legend" style="position:absolute;bottom:8px;right:8px;background:rgba(246,242,232,0.95);border-radius:3px;padding:7px 14px;font-size:0.95rem;color:#888;align-items:center;gap:18px;pointer-events:none;"></div>
+      </div>
+    </div>
+
+    <!-- ── SHARED TIMELINE ── -->
+    <div class="timeline-bar" id="shared-timeline">
+      <button class="play-btn" id="play-btn">
+        <svg id="play-icon" viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9" fill="currentColor"/></svg>
+        <svg id="pause-icon" viewBox="0 0 10 10" style="display:none"><rect x="1.5" y="1" width="2.5" height="8" fill="currentColor"/><rect x="6" y="1" width="2.5" height="8" fill="currentColor"/></svg>
+      </button>
+      <span class="tl-year">2022</span>
+      <div class="tl-track" id="tl-track">
+        <div class="tl-fill" id="tl-fill"></div>
+        <div class="tl-thumb-left" id="tl-thumb-left"></div>
+        <div class="tl-thumb" id="tl-thumb"></div>
+      </div>
+      <span class="tl-year">2026</span>
+    </div>
+
+    <!-- ── FOOTER ── -->
+    <div class="chart-footer">
+      <div class="chart-footer-left">
+        <strong>Data source:</strong> Kiel Institute for the World Economy – <span id="footer-release-label">Ukraine Support Tracker, Release 30 (07/2026)</span><br>
+        <strong>Note:</strong> Covers bilateral government-to-government aid allocations (military, financial, humanitarian). Values in current euros.
+      </div>
+      <div class="footer-icons">
+        <!-- Info -->
+        <button class="footer-icon-btn" id="info-btn" title="About this data">
+          <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><line x1="8" y1="7.1" x2="8" y2="11.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="4.85" r="0.95" fill="currentColor"/></svg>
+        </button>
+        <!-- Download -->
+        <button class="footer-icon-btn" id="dl-btn" title="Download data">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 4 3-4M2 13h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </button>
+        <!-- Share -->
+        <div class="share-wrap">
+          <button class="footer-icon-btn" id="share-btn" title="Share">
+            <svg viewBox="0 0 16 16" fill="none"><circle cx="13" cy="3" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="3" cy="8" r="1.6" stroke="currentColor" stroke-width="1.3"/><circle cx="13" cy="13" r="1.6" stroke="currentColor" stroke-width="1.3"/><line x1="4.6" y1="7.2" x2="11.4" y2="4" stroke="currentColor" stroke-width="1.2"/><line x1="4.6" y1="8.8" x2="11.4" y2="12" stroke="currentColor" stroke-width="1.2"/></svg>
+          </button>
+          <div class="share-dropdown" id="share-dropdown">
+            <div class="share-dropdown-title">Share</div>
+            <div class="share-option" id="opt-image">
+              <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="7" r="1.2" stroke="currentColor" stroke-width="1.1"/><polyline points="1,11 5,7.5 8,10 11,7 15,11" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+              Copy chart as image
+            </div>
+            <div class="share-option" id="opt-link">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5a3.5 3.5 0 0 0 4.95 0l2-2a3.5 3.5 0 0 0-4.95-4.95l-1 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M9.5 6.5a3.5 3.5 0 0 0-4.95 0l-2 2a3.5 3.5 0 0 0 4.95 4.95l1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              Copy link to chart
+            </div>
+          </div>
+        </div>
+        <!-- Fullscreen -->
+        <button class="footer-icon-btn" id="fullscreen-btn" title="Fullscreen">
+          <svg id="fs-expand-icon" viewBox="0 0 16 16" fill="none"><path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <svg id="fs-compress-icon" viewBox="0 0 16 16" fill="none" style="display:none"><path d="M6 1v5H1M10 1v5h5M1 10h5v5M15 10h-5v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /.right-panel -->
+
+  <div id="map-tooltip"></div>
+  <div id="copy-toast">Link copied!</div>
+
+  <!-- ── Download Modal ── -->
+  <div id="dl-overlay"></div>
+  <div id="dl-modal">
+    <button id="dl-close" title="Close">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div id="dl-question">What data would you like to download?</div>
+    <div class="dl-option" id="dl-full">
+      <svg viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="14" height="14" rx="1.5" stroke="#3a6dc5" stroke-width="1.5"/><path d="M5 6h8M5 9h8M5 12h5" stroke="#3a6dc5" stroke-width="1.3" stroke-linecap="round"/></svg>
+      <div>
+        <div class="dl-option-title">All Countries / Aggregates</div>
+        <div class="dl-option-sub">All countries · All months · All aid types</div>
+      </div>
+    </div>
+    <div class="dl-option" id="dl-filtered">
+      <svg viewBox="0 0 18 18" fill="none"><path d="M2 3h14l-5.5 6.5V15l-3-1.5V9.5L2 3z" stroke="#3a6dc5" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      <div>
+        <div class="dl-option-title">Selected Countries / Aggregates</div>
+        <div class="dl-option-sub" id="dl-filtered-sub">Active metric, selected countries &amp; time range</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Info Modal ── -->
+  <div id="info-overlay"></div>
+  <div id="info-modal">
+    <button id="info-close" title="Close">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div id="info-modal-inner">
+      <div id="info-eyebrow"></div>
+      <div id="info-body"></div>
+    </div>
+  </div>
+
+</div><!-- /.explorer-wrap -->
+</div><!-- /.explorer-scale-container -->
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="../../assets/data-loader.js"></script>
+<script>
+/* ════════════════════════════════════
+   DATA
+   Loaded at runtime from data/data_explorer.csv (see ../../assets/data-loader.js).
+════════════════════════════════════ */
+let MONTHLY = [];
+let RELEASE_LABEL = 'Ukraine Support Tracker, Release 30 (07/2026)';
+
+async function main(){
+const rows = await USTData.fetchCSV('data_explorer.csv');
+MONTHLY = rows.map(r => ({
+  c: r.country, iso: r.iso, y: r.year, m: r.month,
+  tot: r.total, fin: r.financial, hum: r.humanitarian, mil: r.military,
+  commit: r.commitments,
+  gdp: r.gdp, pct: r.pct_gdp
+}));
+RELEASE_LABEL = await USTData.fetchReleaseLabel(RELEASE_LABEL);
+const footerReleaseEl = document.getElementById('footer-release-label');
+if(footerReleaseEl) footerReleaseEl.textContent = RELEASE_LABEL;
+
+/* ── Aggregate donor groups (synthetic rows, summed from constituent countries) ──
+   Ireland is an EU member but has no aid rows in this dataset, so it contributes
+   nothing to the EU-27 sums below (as if $0). */
+const EU_INSTITUTIONS = 'EU Institutions'; // display label used in the aggregate/selector UI
+const EU_INSTITUTIONS_RAW = 'EU (Commission and Council)'; // actual country name in the data
+const EU27_COUNTRIES = ['Austria','Belgium','Bulgaria','Croatia','Cyprus','Czechia','Denmark',
+  'Estonia','Finland','France','Germany','Greece','Hungary','Italy','Latvia','Lithuania',
+  'Luxembourg','Malta','Netherlands','Poland','Portugal','Romania','Slovakia','Slovenia',
+  'Spain','Sweden'];
+const CONTINENTAL_EUROPE_COUNTRIES = [...EU27_COUNTRIES, 'United Kingdom','Norway','Switzerland','Iceland'];
+const AGGREGATE_COUNTRIES = ['EU Members','Continental Europe','EU Institutions','EU Members and EU Institutions','Continental Europe and EU Institutions'];
+
+function buildAggregateRows(name, constituents){
+  const byMonth = {};
+  constituents.forEach(c=>{
+    MONTHLY.filter(d=>d.c===c).forEach(d=>{
+      const k = d.y+'-'+d.m;
+      if(!byMonth[k]) byMonth[k] = {y:d.y,m:d.m,tot:0,fin:0,hum:0,mil:0};
+      byMonth[k].tot += d.tot; byMonth[k].fin += d.fin; byMonth[k].hum += d.hum; byMonth[k].mil += d.mil;
+    });
+  });
+  const gdp = constituents.reduce((s,c)=>s+(MONTHLY.find(d=>d.c===c)?.gdp ?? 0), 0);
+  return Object.values(byMonth).map(v=>({
+    c:name, iso:'AGG:'+name, y:v.y, m:v.m, tot:v.tot, fin:v.fin, hum:v.hum, mil:v.mil,
+    gdp, pct: gdp>0 ? v.tot/gdp*100 : 0
+  }));
+}
+
+MONTHLY.push(...buildAggregateRows('EU Institutions', [EU_INSTITUTIONS_RAW]));
+MONTHLY.push(...buildAggregateRows('EU Members', EU27_COUNTRIES));
+MONTHLY.push(...buildAggregateRows('Continental Europe', CONTINENTAL_EUROPE_COUNTRIES));
+MONTHLY.push(...buildAggregateRows('EU Members and EU Institutions', [...EU27_COUNTRIES, EU_INSTITUTIONS_RAW]));
+MONTHLY.push(...buildAggregateRows('Continental Europe and EU Institutions', [...CONTINENTAL_EUROPE_COUNTRIES, EU_INSTITUTIONS_RAW]));
+
+const COUNTRIES = [...new Set(MONTHLY.map(d=>d.c))].sort();
+/* All year-months as {y,m} objects, sorted */
+const YMS = [...new Set(MONTHLY.map(d=>`${d.y}-${String(d.m).padStart(2,'0')}`))]
+  .sort().map(s=>({y:+s.slice(0,4),m:+s.slice(5)}));
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const LINE_COLORS = ['#3a6dc5','#c0392b','#27a66e','#9b59b6','#e8a820','#34a0bd','#e05c2e','#1a6b3c'];
+
+/* ── LINE VIEW: style config ──────────────────────────────────
+   Edit the "normal" block for windowed mode and the "fullscreen"
+   block for fullscreen mode — they no longer share values.
+     - xAxisFontSize / yAxisFontSize : tick label text size
+     - unitLabelFontSize             : "€ billion" / "% of 2021 GDP" text size
+     - padLeft / padRight            : chart left/right margin (px, at the
+                                        explorer's native 1155×730 size)
+     - padTop / padBottom            : chart top/bottom margin (px, same
+                                        native size as padLeft/padRight)
+     - legendFontSize                : the "United States / Germany / …"
+                                        legend row under the chart
+     - timelineLabelFontSize         : the scroll-bar (timeline) labels —
+                                        the "Jan 2022 / Apr 2026" end labels
+                                        and the year ticks (2023, 2024, …)
+     - endLabelFontSize              : the country names next to the line
+                                        ends ("United States", "Germany", …)
+     - timelineBottomGap             : distance between the time-range bar and
+                                        the separator line just below it (any
+                                        CSS length, e.g. '0.45rem' / '12px')
+   Note: the font-size / gap values accept any CSS size ('0.82rem', '15px', …);
+   use px if you want a size that does NOT get further scaled by fullscreen's
+   global zoom. */
+const LINE_CHART_STYLE = {
+  normal: {
+    xAxisFontSize: '1rem',
+    yAxisFontSize: '1rem',
+    unitLabelFontSize: '0.95rem',
+    padLeft: 20,
+    padRight: 40,
+    padTop: 40,
+    padBottom: 35,
+    legendFontSize: '0.82rem',
+    timelineLabelFontSize: '0.75rem',
+    endLabelFontSize: '0.98rem',
+    timelineBottomGap: '0.45rem',
+  },
+  fullscreen: {
+    xAxisFontSize: '0.8rem',
+    yAxisFontSize: '0.8rem',
+    unitLabelFontSize: '0.9rem',
+    padLeft: 0,
+    padRight: 10,
+    padTop: 30,
+    padBottom: 15,
+    legendFontSize: '1.1rem',
+    timelineLabelFontSize: '0.8rem',
+    endLabelFontSize: '0.85rem',
+    timelineBottomGap: '1rem',
+  },
+};
+function currentLineChartStyle(){
+  const wrap=document.getElementById('explorer-wrap');
+  const isFs = !!document.fullscreenElement && document.fullscreenElement===wrap;
+  return isFs ? LINE_CHART_STYLE.fullscreen : LINE_CHART_STYLE.normal;
+}
+/* Apply the shared-timeline style values (from the normal/fullscreen block):
+   - timelineLabelFontSize : the "Jan 2022 / Apr 2026" end labels and the
+                             year ticks inside the track
+   - timelineBottomGap     : bottom padding of the timeline bar = distance
+                             to the separator line just below it
+   Called on setup and on fullscreen toggle. */
+function applyTimelineLabelSize(){
+  const st=currentLineChartStyle();
+  document.querySelectorAll('#shared-timeline .tl-year, #shared-timeline .tl-tick-label')
+    .forEach(el=>{ el.style.fontSize=st.timelineLabelFontSize; });
+  const bar=document.getElementById('shared-timeline');
+  if(bar) bar.style.paddingBottom=st.timelineBottomGap;
+}
+
+function ymLabel(y,m){ return `${MONTH_NAMES[m-1]} ${y}`; }
+function ymKey(y,m){ return y*100+m; }
+
+function fixCrimeaFeatures(features){
+  const russia  = features.find(f => f.id === '643');
+  const ukraine = features.find(f => f.id === '804');
+  if(!russia || !ukraine) return features;
+
+  function polyCentroid(ring){
+    let sx=0,sy=0;
+    for(const p of ring){ sx+=p[0]; sy+=p[1]; }
+    return [sx/ring.length, sy/ring.length];
+  }
+  function isCrimea(ring){
+    const [lon,lat] = polyCentroid(ring);
+    return lat>44.2 && lat<46.3 && lon>32.4 && lon<36.8;
+  }
+
+  const crimeaPolys = [];
+  function extractPolygons(geom){
+    if(geom.type==='Polygon') return [geom.coordinates];
+    if(geom.type==='MultiPolygon') return geom.coordinates;
+    return [];
+  }
+
+  const ruPolys = extractPolygons(russia.geometry);
+  const kept = [], moved = [];
+  for(const poly of ruPolys){
+    if(isCrimea(poly[0])) moved.push(poly);
+    else kept.push(poly);
+  }
+  if(moved.length===0) return features;
+
+  if(kept.length===1) russia.geometry = {type:'Polygon',coordinates:kept[0]};
+  else russia.geometry = {type:'MultiPolygon',coordinates:kept};
+
+  const uaPolys = extractPolygons(ukraine.geometry);
+  const merged = uaPolys.concat(moved);
+  if(merged.length===1) ukraine.geometry = {type:'Polygon',coordinates:merged[0]};
+  else ukraine.geometry = {type:'MultiPolygon',coordinates:merged};
+
+  return features;
+}
+
+/* ── selection state ─────────────────── */
+const _top4 = COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c) && c !== EU_INSTITUTIONS_RAW)
+  .map(c=>({c,tot:MONTHLY.filter(d=>d.c===c).reduce((s,d)=>s+d.tot,0)}))
+  .sort((a,b)=>b.tot-a.tot).slice(0,4).map(d=>d.c);
+let selected = new Set(_top4);
+let sortDir = -1;
+
+function totalFor(c) { return MONTHLY.filter(d=>d.c===c).reduce((s,d)=>s+d.tot,0); }
+
+/* ════════════════════════════════════
+   LEFT PANEL
+════════════════════════════════════ */
+function countryItemHtml(c) {
+  const isSelected = selected.has(c);
+  return `<div class="country-item${isSelected?' selected':''}" data-c="${c}">
+      <input type="checkbox" ${isSelected?'checked':''} />
+      <span>${c}</span>
+    </div>`;
+}
+
+function renderLeftList() {
+  const q = '';
+  const sortKey = window._sortKey || 'total';
+  const hideOnMap = activeTab === 'map';
+
+  let list = COUNTRIES.filter(c => (!q || c.toLowerCase().includes(q))
+    && !AGGREGATE_COUNTRIES.includes(c) && c !== EU_INSTITUTIONS_RAW);
+
+  list.sort((a,b) => {
+    if (sortKey === 'name') return sortDir * a.localeCompare(b);
+    const fa = MONTHLY.filter(d=>d.c===a);
+    const fb = MONTHLY.filter(d=>d.c===b);
+    const va = sortKey==='total' ? fa.reduce((s,d)=>s+d.tot,0)
+             : sortKey==='pct'   ? (()=>{const t=fa.reduce((s,d)=>s+d.tot,0);const g=fa[0]?.gdp??0;return g>0?t/g*100:0;})()
+             : sortKey==='mil' ? fa.reduce((s,d)=>s+d.mil,0)
+             : sortKey==='fin' ? fa.reduce((s,d)=>s+d.fin,0)
+             : sortKey==='hum' ? fa.reduce((s,d)=>s+d.hum,0)
+             : fa.reduce((s,d)=>s+d.tot,0);
+    const vb = sortKey==='total' ? fb.reduce((s,d)=>s+d.tot,0)
+             : sortKey==='pct'   ? (()=>{const t=fb.reduce((s,d)=>s+d.tot,0);const g=fb[0]?.gdp??0;return g>0?t/g*100:0;})()
+             : sortKey==='mil' ? fb.reduce((s,d)=>s+d.mil,0)
+             : sortKey==='fin' ? fb.reduce((s,d)=>s+d.fin,0)
+             : sortKey==='hum' ? fb.reduce((s,d)=>s+d.hum,0)
+             : fb.reduce((s,d)=>s+d.tot,0);
+    return sortDir * (va - vb);
+  });
+
+  const showAggregates = !hideOnMap;
+  if (!showAggregates) window._aggOpen = false;
+  const aggItems = AGGREGATE_COUNTRIES.filter(c => !(sharedMetric === 'pct' && c === 'EU Institutions'));
+
+  const container = document.getElementById('left-list');
+  container.innerHTML =
+    (showAggregates ? aggregateToggleHtml() : '')
+    + (showAggregates && window._aggOpen ? aggItems.map(countryItemHtml).join('') : '')
+    + (showAggregates ? '<div class="aggregate-divider"></div>' : '')
+    + list.map(countryItemHtml).join('');
+
+  const toggle = document.getElementById('aggregate-toggle');
+  if (toggle) toggle.addEventListener('click', e => {
+    e.stopPropagation();
+    window._aggOpen = !window._aggOpen;
+    renderLeftList();
+  });
+
+  container.querySelectorAll('.country-item:not(.aggregate-toggle)').forEach(el => {
+    el.addEventListener('click', e => {
+      const c = el.dataset.c;
+      if (selected.has(c)) selected.delete(c);
+      else selected.add(c);
+      renderLeftList();
+      renderActiveChart();
+    });
+  });
+}
+
+window._aggOpen = false;
+
+function aggregateToggleHtml() {
+  return `<div class="country-item aggregate-toggle${window._aggOpen?' open':''}" id="aggregate-toggle">
+      <svg class="agg-caret" width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Aggregates</span>
+    </div>`;
+}
+
+
+/* custom sort dropdown */
+window._sortKey = 'total';
+(function() {
+  const btn = document.getElementById('sort-custom-btn');
+  const dropdown = document.getElementById('sort-custom-dropdown');
+  const label = document.getElementById('sort-custom-label');
+  const options = dropdown.querySelectorAll('.sort-custom-option');
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+  document.addEventListener('click', () => dropdown.classList.remove('open'));
+
+  options.forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window._sortKey = opt.dataset.value;
+      label.textContent = opt.textContent.trim();
+      options.forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      dropdown.classList.remove('open');
+      renderLeftList();
+    });
+  });
+})();
+
+/* custom map metric dropdown */
+(function() {
+  const btn = document.getElementById('map-metric-btn');
+  const dropdown = document.getElementById('map-metric-dropdown');
+  const label = document.getElementById('map-metric-label');
+  const options = dropdown.querySelectorAll('.sort-custom-option');
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+  document.addEventListener('click', () => dropdown.classList.remove('open'));
+
+  options.forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sharedMetric = opt.dataset.value;
+      syncMetricDropdowns(sharedMetric);
+      dropdown.classList.remove('open');
+      setMapMetric(sharedMetric);
+    });
+  });
+})();
+
+document.getElementById('left-sort-dir').addEventListener('click', () => {
+  sortDir *= -1;
+  document.getElementById('left-sort-dir').textContent = sortDir === -1 ? '↓' : '↑';
+  renderLeftList();
+});
+document.getElementById('left-clear').addEventListener('click', () => {
+  selected.clear();
+  window._aggOpen = false;
+  renderLeftList();
+  renderActiveChart();
+});
+document.getElementById('left-select-all').addEventListener('click', () => {
+  COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c) && c !== EU_INSTITUTIONS_RAW).forEach(c => selected.add(c));
+  renderLeftList();
+  renderActiveChart();
+});
+
+/* ════════════════════════════════════
+   TABS
+════════════════════════════════════ */
+let activeTab = 'map';
+let sharedMetric = 'total'; /* persisted across map/line/bar */
+
+function syncMetricDropdowns(metric) {
+  const panels = ['map', 'line', 'bar'];
+  panels.forEach(p => {
+    const dropdown = document.getElementById(p+'-metric-dropdown');
+    const label    = document.getElementById(p+'-metric-label');
+    if (!dropdown || !label) return;
+    const opts = dropdown.querySelectorAll('.sort-custom-option');
+    opts.forEach(o => {
+      const match = o.dataset.value === metric;
+      o.classList.toggle('active', match);
+      if (match) label.textContent = o.textContent.trim();
+    });
+  });
+}
+
+function syncEuSelection() {
+  const hideEU = activeTab === 'map' || sharedMetric === 'pct';
+  if (hideEU) selected.delete('EU Institutions');
+  if (activeTab === 'map') { AGGREGATE_COUNTRIES.forEach(c => selected.delete(c)); window._aggOpen = false; }
+  renderLeftList();
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (activeTab === btn.dataset.tab) return;
+    activeTab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===activeTab));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id==='panel-'+activeTab));
+    const tl = document.getElementById('shared-timeline');
+    if (tl) tl.style.display = activeTab==='table' ? 'none' : '';
+    syncMetricDropdowns(sharedMetric);
+    syncEuSelection();
+    renderActiveChart();
+    updateYearLabel();
+  });
+});
+
+function renderActiveChart() {
+  if (activeTab==='table') {
+    const titleText = document.getElementById('chart-title-text');
+    if (titleText) titleText.textContent = 'Aid to Ukraine by Donor Country';
+    const sub = document.getElementById('chart-subtitle');
+    if (sub) sub.textContent = 'Total and category-level bilateral aid allocations to Ukraine with donor GDP shares, in € billion.';
+    renderTable();
+  }
+  else if (activeTab==='map') { setMapMetric(sharedMetric); renderMap(); }
+  else if (activeTab==='line') renderLine();
+  else if (activeTab==='bar') renderBar();
+  if (activeTab !== 'map' && activeTab !== 'table') {
+    const titleText = document.getElementById('chart-title-text');
+    if (titleText) titleText.textContent = metricTitle(sharedMetric);
+    const sub = document.getElementById('chart-subtitle');
+    if (sub) sub.textContent = metricSubtitle(sharedMetric);
+  }
+}
+
+/* Redraw the active panel after the card's own box changes size (standalone
+   /fluid mode only — see setupResponsiveScale, which lives outside main()'s
+   scope and so reaches this through window). Line and bar size themselves from
+   their live container, and the globe's radius/centre come from its wrap, so
+   all three need a repaint. The flat map is a viewBox SVG at 100%/100% and the
+   table is a scrollable flex box; both follow the new height on their own. */
+window.__ustRelayoutActivePanel = function(){
+  if (activeTab === 'line') renderLine();
+  else if (activeTab === 'bar') renderBar();
+  else if (activeTab === 'map' && mapViewMode === 'globe' && globeProjection) {
+    /* buildGlobe() rebuilds from scratch, so carry the current rotation over —
+       resizing the window shouldn't spin the globe back to its start. */
+    const rot = globeProjection.rotate();
+    buildGlobe();
+    globeProjection.rotate(rot);
+    const svg = d3.select('#globe-svg');
+    redrawGlobe(d3.select('#globe-g'), svg, +svg.attr('width')/2, +svg.attr('height')/2);
+  }
+};
+
+function updateYearLabel() {
+  const lim=activeTab==='table'?YMS[YMS.length-1]:YMS[mapYmIdx];
+  const start=activeTab==='table'?YMS[0]:YMS[mapYmStartIdx];
+  document.getElementById('year-label').textContent=`${ymLabel(start.y,start.m)}–${ymLabel(lim.y,lim.m)}`;
+}
+
+/* ════════════════════════════════════
+   TABLE
+════════════════════════════════════ */
+let tblSort = {col:'tot', dir:-1};
+
+function fmt(v, dec=2) {
+  if (v===null||v===undefined||isNaN(v)||v===0) return '–';
+  return v.toFixed(dec);
+}
+
+function getCumulRows(c, ymIdx) {
+  /* Returns all monthly rows for country c up to and including YMS[ymIdx] */
+  const lim = YMS[ymIdx];
+  const limKey = ymKey(lim.y, lim.m);
+  return MONTHLY.filter(d=>d.c===c && ymKey(d.y,d.m)<=limKey);
+}
+
+function getRowData() {
+  const cutKey = ymKey(YMS[mapYmIdx].y, YMS[mapYmIdx].m);
+  const startKey = ymKey(YMS[mapYmStartIdx].y, YMS[mapYmStartIdx].m);
+  return COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c) || selected.has(c)).map(c => {
+    const rows = MONTHLY.filter(d=>d.c===c && ymKey(d.y,d.m)>=startKey && ymKey(d.y,d.m)<=cutKey);
+    const tot = rows.reduce((s,d)=>s+d.tot,0);
+    const fin = rows.reduce((s,d)=>s+d.fin,0);
+    const hum = rows.reduce((s,d)=>s+d.hum,0);
+    const mil = rows.reduce((s,d)=>s+d.mil,0);
+    const commit = rows.reduce((s,d)=>s+(d.commit||0),0);
+    const gdp = rows[0]?.gdp ?? 0;
+    const pct = gdp > 0 ? tot / gdp * 100 : 0;  /* cumulative tot as % of 2021 GDP */
+    /* first = first month's value, last = last month's value (for change columns) */
+    const first = rows[0]?.tot ?? 0;
+    const last = rows[rows.length-1]?.tot ?? 0;
+    const absChange = last - first;
+    const relChange = first > 0 ? ((last-first)/first)*100 : null;
+    const iso = rows[0]?.iso ?? '';
+    return {c, iso, tot, fin, hum, mil, commit, pct, gdp, first, last, absChange, relChange};
+  });
+}
+
+function renderTable() {
+  let rows = getRowData();
+
+  rows.sort((a,b)=>{
+    const va = a[tblSort.col] ?? -Infinity;
+    const vb = b[tblSort.col] ?? -Infinity;
+    if(typeof va==='string') return tblSort.dir*va.localeCompare(vb);
+    return tblSort.dir*(va-vb);
+  });
+
+  const maxTot = Math.max(...rows.map(r=>r.tot), 0.001);
+
+  document.getElementById('th-spark').innerHTML='Cumulative total aid <span class="sort-arrow" style="opacity:0"></span>';
+
+  const tbody = document.getElementById('tbl-body');
+  tbody.innerHTML = rows.map(d => {
+    const isHL = selected.has(d.c);
+    return `<tr class="${isHL?'highlighted':''}">
+      <td>${d.c}</td>
+      <td class="num">${d.tot>0?fmt(d.tot):'–'}</td>
+      <td>${makeSpark(d.c, maxTot, '#ff6b00')}</td>
+      <td class="num">${d.pct>0?fmt(d.pct,2)+'%':'–'}</td>
+      <td class="num">${d.mil>0?fmt(d.mil):'–'}</td>
+      <td class="num">${d.hum>0?fmt(d.hum):'–'}</td>
+      <td class="num">${d.fin>0?fmt(d.fin):'–'}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('#data-table th[data-col]').forEach(th => {
+    th.onclick = () => {
+      const col = ({country:'c',spark:'_nosort'})[th.dataset.col] || th.dataset.col;
+      if (col === '_nosort') return;
+      if (tblSort.col===col) tblSort.dir*=-1;
+      else { tblSort.col=col; tblSort.dir=-1; }
+      document.querySelectorAll('#data-table th .sort-arrow').forEach(s=>s.textContent='↕');
+      th.querySelector('.sort-arrow').textContent = tblSort.dir===-1?'↓':'↑';
+      renderTable();
+    };
+  });
+}
+
+function makeSpark(country, maxTot, color) {
+  const W=120,H=24,pad=2;
+  /* Build cumulative series over all YMS months, carrying forward */
+  const byKey={};
+  let cum=0;
+  MONTHLY.filter(d=>d.c===country).sort((a,b)=>ymKey(a.y,a.m)-ymKey(b.y,b.m))
+    .forEach(r=>{ cum+=r.tot; byKey[ymKey(r.y,r.m)]=cum; });
+  if(!cum) return '';
+  let last=0;
+  const series=YMS.map(ym=>{ const k=ymKey(ym.y,ym.m); if(byKey[k]!==undefined) last=byKey[k]; return last; });
+  const mx=series[series.length-1]||0.001;
+  const pts=series.map((v,i)=>{
+    const x=pad+(i/(series.length-1))*(W-2*pad);
+    const y=H-pad-(v/mx)*(H-2*pad);
+    return `${x},${y}`;
+  }).join(' ');
+  const lastX=W-pad, lastY=H-pad-(series[series.length-1]/mx)*(H-2*pad);
+  const col=color||'#3a6dc5';
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block">
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.4"/>
+    <circle cx="${lastX}" cy="${lastY}" r="2" fill="${col}"/>
+  </svg>`;
+}
+
+/* ════════════════════════════════════
+   MAP
+════════════════════════════════════ */
+const MAP_COLORS = ['#eef2fc','#d8e1f7','#c2d0f2','#aabfec','#93aee7','#7b9de1','#638cdb','#4b7bd5','#336acf','#1b59c8','#0f3d96'];
+let mapYmIdx=YMS.length-1, mapYmStartIdx=0, mapPlaying=false, mapTimer=null, mapGeo=null;
+let mapMetric='total';
+function getUseVal(metric) {
+  if(metric==='pct') return v=>v.pct;
+  if(metric==='fin') return v=>v.fin;
+  if(metric==='mil') return v=>v.mil;
+  if(metric==='hum') return v=>v.hum;
+  if(metric==='alloc_commit') return v=>(v.tot||0)+(v.commit||0);
+  return v=>v.tot;
+}
+function metricTitle(m) {
+  if(m==='pct') return 'Aid to Ukraine: Share of GDP by Donor Country';
+  if(m==='fin') return 'Financial Aid to Ukraine by Donor Country';
+  if(m==='mil') return 'Military Aid to Ukraine by Donor Country';
+  if(m==='hum') return 'Humanitarian Aid to Ukraine by Donor Country';
+  if(m==='alloc_commit') return 'Allocations and Commitments to Ukraine by Donor Country';
+  return 'Aid to Ukraine by Donor Country';
+}
+function metricSubtitle(m) {
+  if(m==='pct') return 'Bilateral government aid allocations to Ukraine as a share of donor GDP (%).';
+  if(m==='fin') return 'Bilateral government financial aid allocations to Ukraine in € billion.';
+  if(m==='mil') return 'Bilateral government military aid allocations to Ukraine in € billion.';
+  if(m==='hum') return 'Bilateral government humanitarian aid allocations to Ukraine in € billion.';
+  if(m==='alloc_commit') return 'Bilateral government aid allocations vs. commitments to Ukraine, in € billion.';
+  return 'Total bilateral government aid allocations to Ukraine (military, financial, and humanitarian) in € billion.';
+}
+
+const colorScaleInterp = d3.interpolateRgbBasis(MAP_COLORS);
+function colorScale(v,mx){
+  if(v<=0) return MAP_COLORS[0];
+  const t=Math.min(Math.pow(v/mx,0.4),1);
+  return colorScaleInterp(t);
+}
+
+function buildIso3Map(){
+  return {4:'AFG',8:'ALB',12:'DZA',24:'AGO',32:'ARG',36:'AUS',40:'AUT',
+    56:'BEL',68:'BOL',76:'BRA',100:'BGR',124:'CAN',156:'CHN',170:'COL',
+    191:'HRV',196:'CYP',203:'CZE',208:'DNK',233:'EST',246:'FIN',250:'FRA',
+    276:'DEU',300:'GRC',348:'HUN',356:'IND',360:'IDN',372:'IRL',380:'ITA',
+    392:'JPN',410:'KOR',428:'LVA',440:'LTU',442:'LUX',484:'MEX',528:'NLD',
+    554:'NZL',578:'NOR',616:'POL',620:'PRT',642:'ROU',643:'RUS',703:'SVK',
+    705:'SVN',724:'ESP',752:'SWE',756:'CHE',792:'TUR',804:'UKR',826:'GBR',
+    840:'USA',352:'ISL',710:'ZAF',566:'NGA',404:'KEN',144:'LKA'};
+}
+
+function getMapData(ymIdx){
+  /* Cumulate all months up to and including YMS[ymIdx] */
+  const m={};
+  COUNTRIES.forEach(c=>{
+    const isoR=MONTHLY.find(d=>d.c===c); if(!isoR) return;
+    const rows=getCumulRows(c, ymIdx);
+    const tot=rows.reduce((s,d)=>s+d.tot,0);
+    const fin=rows.reduce((s,d)=>s+d.fin,0);
+    const hum=rows.reduce((s,d)=>s+d.hum,0);
+    const mil=rows.reduce((s,d)=>s+d.mil,0);
+    const gdp=isoR.gdp;
+    const pct=gdp>0?tot/gdp*100:0;
+    m[isoR.iso]={tot,pct,fin,hum,mil,c};
+  });
+  return m;
+}
+
+let mapGeo50=null; /* medium-res cache */
+let mapGeo10=null; /* high-res cache */
+let mapZoomScale=1; /* current zoom level, used for adaptive stroke widths */
+let mapProj=null;  /* shared projection */
+
+async function renderMap(){
+  if(mapGeo){updateMapColors();return;}
+  try{
+    const world=await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+    mapGeo=world;
+    const svg=d3.select('#choropleth-svg');
+    const g=svg.select('#map-g');
+
+    /* Cropped world view — trimmed left Pacific gap and bottom empty space */
+    mapProj=d3.geoNaturalEarth1().fitExtent([[2,2],[958,498]],{type:'Feature',geometry:{type:'Polygon',coordinates:[[[-118,76],[180,76],[180,-52],[-118,-52],[-118,76]]]}});
+    const path=d3.geoPath().projection(mapProj);
+
+    const features=fixCrimeaFeatures(topojson.feature(world,world.objects.countries).features).filter(f=>f.id!=='010');
+
+    /* Draw all countries first as cream background layer */
+    g.selectAll('.choro-bg').data(features, d=>d.id).enter().append('path')
+      .attr('class','choro-bg').attr('d',path);
+
+    /* Then draw the data layer on top */
+    g.selectAll('.choro-country').data(features, d=>d.id).enter().append('path')
+      .attr('class','choro-country').attr('d',path).attr('data-id',d=>d.id)
+      .attr('fill','none')
+      .on('mousemove',showMapTT)
+      .on('mouseleave',()=>{document.getElementById('map-tooltip').style.display='none';});
+
+    const ml=document.getElementById('map-legend'); if(ml) ml.style.display='';
+    updateMapColors();
+    setupTimeline();
+
+    /* Prefetch higher-res geo in the background */
+    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json').then(w=>{mapGeo50=w;});
+    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json').then(w=>{mapGeo10=w;});
+  }catch(e){console.error(e);}
+}
+
+function applyMapResolution(scale){
+  if(!mapGeo||!mapProj) return;
+  let world;
+  if(scale>=6 && mapGeo10)       world = mapGeo10;
+  else if(scale>=3 && mapGeo50)  world = mapGeo50;
+  else                            world = mapGeo;
+  const features = fixCrimeaFeatures(topojson.feature(world,world.objects.countries).features).filter(f=>f.id!=='010');
+  const path = d3.geoPath().projection(mapProj);
+  const g = d3.select('#map-g');
+
+  g.selectAll('.choro-bg').remove();
+  g.selectAll('.choro-country').remove();
+
+  g.selectAll('.choro-bg').data(features, d=>d.id).enter().append('path')
+    .attr('class','choro-bg').attr('d',path);
+
+  g.selectAll('.choro-country').data(features, d=>d.id).enter().append('path')
+    .attr('class','choro-country').attr('d',path).attr('data-id',d=>d.id)
+    .attr('fill','none')
+    .on('mousemove',showMapTT)
+    .on('mouseleave',()=>{document.getElementById('map-tooltip').style.display='none';});
+
+  updateMapColors();
+}
+
+/* Compute full cumulative totals once (all time) for static map coloring */
+function getMapDataAtIdx(idx){
+  const cutKey=ymKey(YMS[idx].y,YMS[idx].m);
+  const startKey=ymKey(YMS[mapYmStartIdx].y,YMS[mapYmStartIdx].m);
+  const m={};
+  COUNTRIES.forEach(c=>{
+    const isoR=MONTHLY.find(d=>d.c===c); if(!isoR) return;
+    const rows=MONTHLY.filter(d=>d.c===c && ymKey(d.y,d.m)>=startKey && ymKey(d.y,d.m)<=cutKey);
+    const tot=rows.reduce((s,d)=>s+d.tot,0);
+    const fin=rows.reduce((s,d)=>s+d.fin,0);
+    const hum=rows.reduce((s,d)=>s+d.hum,0);
+    const mil=rows.reduce((s,d)=>s+d.mil,0);
+    const commit=rows.reduce((s,d)=>s+(d.commit||0),0);
+    const gdp=isoR.gdp;
+    const pct=gdp>0?tot/gdp*100:0;
+    m[isoR.iso]={tot,pct,fin,hum,mil,commit,c};
+  });
+  return m;
+}
+/* Cumulative totals for one country, month by month over the selected timeline range
+   (mapYmStartIdx..mapYmIdx). This is the single source of truth for "how much has this
+   country given as of month X" — used by the big line chart AND the tooltip's mini chart,
+   so the two can never show different numbers for the same country/range. */
+function buildCumulativeSeries(c){
+  const startKey=ymKey(YMS[mapYmStartIdx].y,YMS[mapYmStartIdx].m);
+  const sorted=MONTHLY.filter(d=>d.c===c && ymKey(d.y,d.m)>=startKey).sort((a,b)=>ymKey(a.y,a.m)-ymKey(b.y,b.m));
+  const gdp=MONTHLY.find(d=>d.c===c)?.gdp??0;
+  let cumTot=0, cumFin=0, cumMil=0, cumHum=0;
+  const byKey={};
+  sorted.forEach(d=>{
+    cumTot+=d.tot; cumFin+=(d.fin||0); cumMil+=(d.mil||0); cumHum+=(d.hum||0);
+    byKey[ymKey(d.y,d.m)]={tot:cumTot,fin:cumFin,mil:cumMil,hum:cumHum};
+  });
+  let last={tot:0,fin:0,mil:0,hum:0};
+  return YMS.slice(mapYmStartIdx,mapYmIdx+1).map(ym=>{
+    const k=ymKey(ym.y,ym.m);
+    if(byKey[k]!==undefined) last=byKey[k];
+    return {y:ym.y,m:ym.m,tot:last.tot,fin:last.fin,mil:last.mil,hum:last.hum,pct:gdp>0?last.tot/gdp*100:0};
+  });
+}
+
+/* Set of ISO3 codes for the countries currently checked in the sidebar list. */
+function getSelectedIsos(){
+  const isos=new Set();
+  selected.forEach(c=>{
+    const r=MONTHLY.find(d=>d.c===c);
+    if(r) isos.add(r.iso);
+  });
+  return isos;
+}
+
+/* Legend/color-scale max: fixed at the overall (full time range, all
+   countries) max for the current metric — regardless of the timeline
+   scrubber position or which countries are checked in the sidebar.
+   Otherwise a country's real value can exceed what the legend/color scale
+   shows (e.g. Denmark's Share of GDP reading 3.46% while the legend topped
+   out at 0.8%, because Denmark wasn't one of the currently-checked
+   countries the max was drawn from), and the scale would rescale — and so
+   look inconsistent — as you scrub the timeline. */
+let _legendMaxCache={};
+function getLegendMax(data,useVal){
+  if(_legendMaxCache[mapMetric]!==undefined) return _legendMaxCache[mapMetric];
+  const overallData=getMapDataAtIdx(YMS.length-1);
+  const allVals=Object.values(overallData).filter(v=>v&&v.tot>0).map(useVal);
+  const mx=allVals.length ? Math.max(...allVals) : 1;
+  _legendMaxCache[mapMetric]=mx;
+  return mx;
+}
+
+/* Cache of getMapDataAtIdx(mapYmIdx), recomputed only when the selected range changes.
+   This is what tooltips (map hover + line chart hover) should read, so their numbers
+   always match what the line/mini-chart is currently plotting. */
+let _rangeDataCache=null, _rangeDataCacheKey=null;
+function getCurrentRangeMapData(){
+  const key=mapYmStartIdx+'_'+mapYmIdx;
+  if(_rangeDataCacheKey!==key){ _rangeDataCache=getMapDataAtIdx(mapYmIdx); _rangeDataCacheKey=key; }
+  return _rangeDataCache;
+}
+
+function setMapMetric(m){
+  mapMetric=m;
+  const opts=document.querySelectorAll('#map-metric-dropdown .sort-custom-option');
+  opts.forEach(o=>{
+    o.classList.toggle('active', o.dataset.value===m);
+    if(o.dataset.value===m){ const lbl=document.getElementById('map-metric-label'); if(lbl) lbl.textContent=o.textContent.trim(); }
+  });
+  const titleText=document.getElementById('chart-title-text');
+  if(titleText) titleText.textContent = metricTitle(m);
+  const sub=document.getElementById('chart-subtitle');
+  if(sub) sub.textContent = metricSubtitle(m);
+  if(mapGeo) updateMapColors();
+}
+
+function updateMapColors(){
+  const data=getMapDataAtIdx(mapYmIdx);
+  const iso3=buildIso3Map();
+  const useVal = getUseVal(mapMetric);
+  const mx=getLegendMax(data,useVal);
+
+  const selIsos=getSelectedIsos();
+
+  d3.selectAll('.choro-country').each(function(d){
+    const iso=iso3[+d.id];
+    const info=iso?data[iso]:null;
+    let fill, hasData;
+    if(iso==='UKR'){ fill='#fdd49e'; hasData=true; }
+    else if(!info || info.tot<=0){ fill='url(#hatch)'; hasData=false; }
+    else { fill=colorScale(useVal(info),mx); hasData=true; }
+
+    const isSel=selIsos.has(iso);
+
+    d3.select(this)
+      .attr('fill', fill)
+      .attr('stroke', '#9a9590');
+
+    if(isSel) this.parentNode.appendChild(this);
+  });
+
+  updateLegend(mx);
+  updateYearLabel();
+  updateThumb();
+
+  /* Keep globe in sync if it's the active view */
+  if(mapViewMode==='globe' && globeProjection) updateGlobeColors();
+}
+
+function getZoom() {
+  const wrap = document.getElementById('explorer-wrap');
+  const z = parseFloat(getComputedStyle(wrap).zoom) || 1;
+  return z;
+}
+
+/* The responsive scale-down (setupResponsiveScale) applies CSS transform:scale()
+   to #explorer-wrap on narrow viewports. Any transform on an ancestor makes it
+   the containing block for position:fixed descendants (like #map-tooltip), so
+   "px" values written to that tooltip's left/top get scaled visually along with
+   the rest of the wrap. getZoom() only captures CSS zoom (used in fullscreen),
+   not this transform — so it must be read separately here. */
+function getWrapScale() {
+  const wrap = document.getElementById('explorer-wrap');
+  const t = getComputedStyle(wrap).transform;
+  if(!t || t === 'none') return 1;
+  const m = t.match(/^matrix\(([^,]+),/);
+  return m ? parseFloat(m[1]) || 1 : 1;
+}
+
+/* ════════════ MAP TOOLTIP — layout config ════════════
+   Every size/position knob for the hover popup lives here.
+   Edit these numbers to reshape the tooltip; nothing else needs to change. */
+const TT_LAYOUT = {
+  // outer popup box
+  box: { width: 280, padding: '0.6rem 0.9rem' },
+  // 'row' = chart beside the text (side by side), 'column' = chart below the text (stacked)
+  direction: 'column',
+  // gap between the text block and the chart
+  columnGap: 0,
+  textColumn: { width: 'auto' },
+  // breakdown panel (Share of GDP / Military / Humanitarian / Financial), shown beside "Total Aid"
+  breakdown: {
+    rowGap: '2px',
+    labelColor: '#999',
+    valueColor: '#555',
+    fontSize: '0.792rem',
+  },
+};
+
+function buildBreakdownHTML(info, isAllocCommit){
+  const b = TT_LAYOUT.breakdown;
+  const rows = isAllocCommit ? [
+    ['Allocations', `€${fmt(info.tot)}B`],
+    ['Commitments', `€${fmt(info.commit)}B`],
+  ] : [
+    ['Share of GDP', `${fmt(info.pct,2)}%`],
+    ['Military', `€${fmt(info.mil)}B`],
+    ['Humanitarian', `€${fmt(info.hum)}B`],
+    ['Financial', `€${fmt(info.fin)}B`],
+  ];
+  return `
+    <div style="flex-shrink:0;display:flex;flex-direction:column;gap:${b.rowGap}">
+      ${rows.map(([label,val])=>`
+        <div style="display:flex;justify-content:space-between;gap:0.4rem;font-size:${b.fontSize};white-space:nowrap">
+          <span style="color:${b.labelColor}">${label}</span>
+          <span style="color:${b.valueColor};font-weight:600">${val}</span>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+function buildTooltipHTML(info, isAllocCommit){
+  const t = TT_LAYOUT;
+  const hasData = isAllocCommit ? (info.tot > 0 || info.commit > 0) : info.tot > 0;
+  const alignStyle = t.direction === 'column' ? 'stretch' : 'flex-end';
+  const rangeStart = YMS[mapYmStartIdx], rangeEnd = YMS[mapYmIdx];
+  const rangeLabel = `${ymLabel(rangeStart.y,rangeStart.m)}–${ymLabel(rangeEnd.y,rangeEnd.m)}`;
+  return `
+    <div style="display:flex;flex-direction:${t.direction};gap:${t.columnGap}px;align-items:${alignStyle}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.6rem">
+        <div style="flex:1 1 auto;min-width:0;width:${t.textColumn.width}">
+          <div class="tt-name" style="overflow-wrap:break-word">${info.c}</div>
+          ${hasData ? `
+          <div style="font-size:0.864rem;color:#999;margin-bottom:0">${isAllocCommit ? 'Allocations' : 'Total Aid'}</div>
+          <div class="tt-val">€${fmt(info.tot)}B</div>
+          <div style="font-size:0.792rem;color:#aaa;margin-top:0.2rem">${rangeLabel}</div>
+          ` : `<div style="color:#999;font-size:0.936rem">No data</div>
+          <div style="font-size:0.792rem;color:#aaa;margin-top:0.2rem">${rangeLabel}</div>`}
+        </div>
+        ${hasData ? buildBreakdownHTML(info, isAllocCommit) : ''}
+      </div>
+    </div>`;
+}
+
+function positionTooltip(tt, event){
+  tt.style.display='block';
+  const z=getZoom(),m=12,r=tt.getBoundingClientRect();
+  /* #map-tooltip is position:fixed, but a transform on #explorer-wrap (either
+     the fullscreen CSS zoom or the responsive scale-down) makes that wrap the
+     tooltip's real containing block. Convert the mouse's viewport coordinates
+     into the wrap's local (pre-scale) coordinate space so left/top land where
+     the cursor visually is, regardless of which transform is active. */
+  const wrap=document.getElementById('explorer-wrap');
+  const wrapRect=wrap.getBoundingClientRect();
+  const s=getWrapScale();
+  const cx=(event.clientX-wrapRect.left)/s/z, cy=(event.clientY-wrapRect.top)/s/z;
+  const maxW=wrapRect.width/s/z, maxH=wrapRect.height/s/z;
+  let l=cx+m, t=cy+m;
+  if(l+r.width/s/z>maxW) l=cx-r.width/s/z-m;
+  if(t+r.height/s/z>maxH) t=cy-r.height/s/z-m;
+  tt.style.left=l+'px'; tt.style.top=t+'px';
+}
+
+function showCountryTT(event, countryName) {
+  const isoR=MONTHLY.find(d=>d.c===countryName);
+  if(!isoR) return;
+  const info=getCurrentRangeMapData()[isoR.iso];
+  if(!info) return;
+  const barMetric=document.querySelector('#bar-metric-dropdown .sort-custom-option.active')?.dataset.value;
+  const isAllocCommit = activeTab==='bar' && barMetric==='alloc_commit';
+  const tt=document.getElementById('map-tooltip');
+  tt.innerHTML=buildTooltipHTML(info, isAllocCommit);
+  positionTooltip(tt, event);
+}
+function hideCountryTT(){ document.getElementById('map-tooltip').style.display='none'; }
+
+function showMapTT(event,d){
+  const iso3=buildIso3Map(); const iso=iso3[+d.id];
+  const info=iso?getCurrentRangeMapData()[iso]:null;
+  const tt=document.getElementById('map-tooltip');
+  if(!info){tt.style.display='none';return;}
+  tt.innerHTML=buildTooltipHTML(info);
+  positionTooltip(tt, event);
+}
+
+function updateLegend(mx){
+  const canvas=document.getElementById('legend-canvas');
+  canvas.width=canvas.offsetWidth||400;
+  canvas.height=13;
+  const ctx=canvas.getContext('2d');
+  for(let i=0;i<200;i++){
+    ctx.fillStyle=colorScale((i/200)*mx+0.001,mx);
+    ctx.fillRect((i/200)*canvas.width,0,(canvas.width/200)+1,canvas.height);
+  }
+  const ticksEl=document.getElementById('legend-ticks');
+  if(ticksEl){
+    const steps=[0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0];
+    if(mapMetric==='pct'){
+      ticksEl.innerHTML=steps.map(p=>`<span>${(p*mx).toFixed(1)}%</span>`).join('');
+    } else {
+      ticksEl.innerHTML=steps.map(p=>{
+        const v=p*mx;
+        const label = v===0 ? '0' : v>=100 ? Math.round(v)+'B' : v>=10 ? Math.round(v)+'B' : v>=1 ? v.toFixed(1)+'B' : v.toFixed(2)+'B';
+        return `<span>€${label}</span>`;
+      }).join('');
+    }
+  }
+}
+
+function setupTimeline(){
+  const track=document.getElementById('tl-track');
+  const playBtn=document.getElementById('play-btn');
+  /* Update year labels on timeline ends */
+  const tlYears=document.querySelectorAll('.tl-year');
+  if(tlYears[0]) tlYears[0].textContent=ymLabel(YMS[0].y,YMS[0].m);
+  if(tlYears[1]) tlYears[1].textContent=ymLabel(YMS[YMS.length-1].y,YMS[YMS.length-1].m);
+
+  /* Add yearly tick labels inside the track */
+  const minY=YMS[0].y, maxY=YMS[YMS.length-1].y;
+  for(let yr=minY+1; yr<=maxY; yr++){
+    const idx=YMS.findIndex(ym=>ym.y===yr&&ym.m===1);
+    if(idx<0) continue;
+    const pct=idx/(YMS.length-1)*100;
+    const lbl=document.createElement('span');
+    lbl.className='tl-tick-label';
+    lbl.textContent=yr;
+    lbl.style.left=pct+'%';
+    track.appendChild(lbl);
+  }
+  applyTimelineLabelSize();
+
+  function refresh(){
+    if(activeTab==='map') updateMapColors();
+    else { updateThumb(); if(activeTab==='line') renderLine(); else if(activeTab==='bar') renderBar(); }
+    updateYearLabel();
+  }
+  function setEndFromT(t){
+    const idx=Math.round(t*(YMS.length-1));
+    mapYmIdx=Math.max(idx, mapYmStartIdx);
+    refresh();
+  }
+  function setStartFromT(t){
+    const idx=Math.round(t*(YMS.length-1));
+    mapYmStartIdx=Math.min(idx, mapYmIdx);
+    refresh();
+  }
+  track.addEventListener('click',e=>{
+    const rect=track.getBoundingClientRect();
+    const t=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+    const idx=Math.round(t*(YMS.length-1));
+    /* Click snaps whichever thumb is closer */
+    const distStart=Math.abs(idx-mapYmStartIdx);
+    const distEnd=Math.abs(idx-mapYmIdx);
+    if(distStart<=distEnd) setStartFromT(t);
+    else setEndFromT(t);
+  });
+  let drag=null; /* 'start' | 'end' */
+  document.getElementById('tl-thumb-left').addEventListener('mousedown',e=>{drag='start';e.preventDefault();});
+  document.getElementById('tl-thumb').addEventListener('mousedown',e=>{drag='end';e.preventDefault();});
+  document.addEventListener('mousemove',e=>{
+    if(!drag) return;
+    const rect=track.getBoundingClientRect();
+    const t=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+    if(drag==='start') setStartFromT(t);
+    else setEndFromT(t);
+  });
+  document.addEventListener('mouseup',()=>drag=null);
+  playBtn.addEventListener('click',()=>{
+    mapPlaying=!mapPlaying;
+    document.getElementById('play-icon').style.display=mapPlaying?'none':'';
+    document.getElementById('pause-icon').style.display=mapPlaying?'':'none';
+    if(mapPlaying){
+      if(mapYmIdx>=YMS.length-1) mapYmIdx=mapYmStartIdx;
+      mapTimer=setInterval(()=>{
+        if(mapYmIdx>=YMS.length-1){
+          mapPlaying=false; clearInterval(mapTimer);
+          document.getElementById('play-icon').style.display='';
+          document.getElementById('pause-icon').style.display='none';
+        } else {
+          mapYmIdx++;
+          if(activeTab==='map') updateMapColors();
+          else if(activeTab==='line') renderLine();
+          else if(activeTab==='bar') renderBar();
+          updateYearLabel();
+          updateThumb();
+        }
+      },120);
+    } else clearInterval(mapTimer);
+  });
+}
+
+function updateThumb(){
+  const pctStart=mapYmStartIdx/(YMS.length-1)*100;
+  const pctEnd=mapYmIdx/(YMS.length-1)*100;
+  const fill=document.getElementById('tl-fill');
+  fill.style.left=pctStart+'%';
+  fill.style.width=(pctEnd-pctStart)+'%';
+  document.getElementById('tl-thumb-left').style.left=pctStart+'%';
+  document.getElementById('tl-thumb').style.left=pctEnd+'%';
+}
+
+/* ════════════════════════════════════
+   MAP VIEW TOGGLE + ZOOM + GLOBE
+════════════════════════════════════ */
+let mapViewMode = 'map'; /* 'map' | 'globe' */
+
+/* Initial / "reset" zoom state for the flat map.
+   k = zoom scale (1 = fully zoomed out), x/y = pan offset in viewBox units (0 0 960 420).
+   Raise k and adjust x/y to start more zoomed in on a specific region (e.g. Europe/Atlantic). */
+const MAP_INITIAL_ZOOM = { k: 1.01, x: 1, y: 10 };
+
+/* Zoom/pan applied to the flat map only while in fullscreen mode.
+   Same k/x/y meaning as MAP_INITIAL_ZOOM. Raise k to start fullscreen more zoomed in. */
+const MAP_FULLSCREEN_ZOOM = { k: 1.01, x: 1, y: 10 };
+
+let mapZoomBehaviour = null; /* set in setupMapZoom(), used by the fullscreen handler below */
+let mapZoomSvgEl = null;
+
+/* ── Flat map zoom ── */
+(function setupMapZoom(){
+  const svgEl = document.getElementById('choropleth-svg');
+  const gEl   = document.getElementById('map-g');
+  let lastResScale = 1;
+
+  function resTier(k){ return k>=6 ? 2 : k>=3 ? 1 : 0; }
+
+  /* Dynamic stroke/hatch style block — one DOM write per frame instead of per-element */
+  const zoomStyleEl = document.createElement('style');
+  zoomStyleEl.id = 'map-zoom-style';
+  document.head.appendChild(zoomStyleEl);
+
+  let _rafPending = false;
+  let _pendingK = 1;
+
+  function applyZoomStrokes(k){
+    _pendingK = k;
+    if (_rafPending) return;
+    _rafPending = true;
+    requestAnimationFrame(() => {
+      _rafPending = false;
+      const inv = 1 / _pendingK;
+      const ps = 6*inv, ds = 0.5*inv;
+      zoomStyleEl.textContent =
+        `.choro-bg{stroke-width:${0.4*inv}px!important}` +
+        `.choro-country{stroke-width:${0.6*inv}px!important}`;
+      d3.select('#hatch').attr('width', ps).attr('height', ps);
+      d3.select('#hatch circle').attr('cx', ps/2).attr('cy', ps/2).attr('r', ds);
+      d3.select('#hatch rect').attr('width', ps).attr('height', ps);
+    });
+  }
+
+  const zoom  = d3.zoom()
+    .scaleExtent([0.9, 5])
+    .translateExtent([[-480, -210], [1440, 630]])
+    .on('zoom', e => {
+      d3.select(gEl).attr('transform', e.transform);
+      const k = e.transform.k;
+      mapZoomScale = k;
+      if(resTier(k) !== resTier(lastResScale)) applyMapResolution(k);
+      applyZoomStrokes(k);
+      lastResScale = k;
+    });
+
+  d3.select(svgEl).call(zoom).on('dblclick.zoom', null);
+  mapZoomBehaviour = zoom;
+  mapZoomSvgEl = svgEl;
+
+  /* Apply the configured initial zoom/pan on load (no animation) */
+  const initialTransform = d3.zoomIdentity.translate(MAP_INITIAL_ZOOM.x, MAP_INITIAL_ZOOM.y).scale(MAP_INITIAL_ZOOM.k);
+  d3.select(svgEl).call(zoom.transform, initialTransform);
+  mapZoomScale = MAP_INITIAL_ZOOM.k;
+  lastResScale = MAP_INITIAL_ZOOM.k;
+  applyZoomStrokes(MAP_INITIAL_ZOOM.k);
+
+  /* prevent zoom from triggering tooltip while dragging */
+  svgEl.addEventListener('wheel', e => e.stopPropagation(), {passive:true});
+
+  /* Without this, once scaleExtent's min/max is reached, d3-zoom stops
+     calling preventDefault() on further wheel events in the same direction,
+     so the browser falls back to scrolling the page underneath the map. */
+  svgEl.addEventListener('wheel', e => e.preventDefault(), {passive:false});
+
+  document.getElementById('map-zoom-in').addEventListener('click', () => {
+    if(mapViewMode !== 'map') return;
+    d3.select(svgEl).transition().duration(300).call(zoom.scaleBy, 1.6);
+  });
+  document.getElementById('map-zoom-out').addEventListener('click', () => {
+    if(mapViewMode !== 'map') return;
+    d3.select(svgEl).transition().duration(300).call(zoom.scaleBy, 1/1.6);
+  });
+  document.getElementById('map-zoom-reset').addEventListener('click', () => {
+    if(mapViewMode !== 'map') return;
+    lastResScale = MAP_INITIAL_ZOOM.k;
+    mapZoomScale = MAP_INITIAL_ZOOM.k;
+    d3.select(svgEl).transition().duration(400).call(zoom.transform, initialTransform);
+    if(mapGeo) applyMapResolution(MAP_INITIAL_ZOOM.k);
+    applyZoomStrokes(MAP_INITIAL_ZOOM.k);
+  });
+})();
+
+/* ── Globe ── */
+let globeGeo = null;
+let globeProjection = null;
+let globePath = null;
+let globeRotating = false;
+let globeDragStart = null;
+let globeRotateStart = null;
+let globeBaseR = null;
+let globeLastResTier = 0;
+
+function getGlobeRadius(){
+  const wrap = document.getElementById('globe-wrap');
+  return Math.floor(Math.min(wrap.clientWidth, wrap.clientHeight) / 2) - 4;
+}
+
+function buildGlobe(){
+  const wrap   = document.getElementById('globe-wrap');
+  const W      = wrap.clientWidth  || 600;
+  const H      = wrap.clientHeight || 380;
+  const R      = Math.floor(Math.min(W, H) / 2) - 4;
+  const cx     = W / 2;
+  const cy     = H / 2;
+
+  const svgSel = d3.select('#globe-svg')
+    .attr('width', W).attr('height', H)
+    .attr('viewBox', `0 0 ${W} ${H}`)
+    .style('background', '#f6f2e8');
+
+  svgSel.selectAll('*').remove();
+  const defs = svgSel.append('defs');
+
+  /* Hatch pattern for no-data countries */
+  const pat = defs.append('pattern')
+    .attr('id','globe-hatch').attr('patternUnits','userSpaceOnUse')
+    .attr('width',6).attr('height',6);
+  pat.append('rect').attr('width',6).attr('height',6).attr('fill','#f6f2e8');
+  pat.append('circle').attr('cx',3).attr('cy',3).attr('r',0.5).attr('fill','#d8d3cb');
+
+  /* Sphere (ocean) */
+  globeBaseR = R;
+  globeLastResTier = 0;
+  globeProjection = d3.geoOrthographic()
+    .scale(R)
+    .translate([cx, cy])
+    .clipAngle(90)
+    .rotate([15, -20]);
+
+  globePath = d3.geoPath().projection(globeProjection);
+
+  svgSel.append('circle')
+    .attr('class','globe-ocean')
+    .attr('cx', cx).attr('cy', cy).attr('r', R)
+    .attr('fill', '#f6f2e8');
+
+  /* Graticule */
+  const graticule = d3.geoGraticule()();
+  svgSel.append('path')
+    .datum(graticule)
+    .attr('class','globe-graticule')
+    .attr('d', globePath)
+    .attr('fill','none')
+    .attr('stroke','#c8d8e8')
+    .attr('stroke-width', 0.4);
+
+  const g = svgSel.append('g').attr('id','globe-g');
+
+  if(globeGeo){
+    drawGlobeCountries(g, svgSel, cx, cy, R);
+  } else {
+    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world=>{
+      globeGeo = world;
+      if(!mapGeo) mapGeo = world;
+      drawGlobeCountries(g, svgSel, cx, cy, R);
+    });
+  }
+}
+
+function drawGlobeCountries(g, svgSel, cx, cy, R){
+  const features = fixCrimeaFeatures(topojson.feature(globeGeo, globeGeo.objects.countries).features).filter(f=>f.id!=='010');
+  const iso3 = buildIso3Map();
+  const useVal = getUseVal(mapMetric);
+  const data = getMapDataAtIdx(mapYmIdx);
+  const mx = getLegendMax(data,useVal);
+
+  g.selectAll('.globe-country').data(features).enter().append('path')
+    .attr('class','globe-country')
+    .attr('d', globePath)
+    .attr('stroke','#9a9590').attr('stroke-width',0.4)
+    .attr('cursor','pointer')
+    .each(function(d){
+      const iso = iso3[+d.id];
+      const info = iso ? data[iso] : null;
+      let fill;
+      if(iso==='UKR') fill='#fdd49e';
+      else if(!info||info.tot<=0) fill='url(#globe-hatch)';
+      else fill=colorScale(useVal(info),mx);
+      d3.select(this).attr('fill', fill);
+    })
+    .on('mousemove', showGlobeTT)
+    .on('mouseleave', ()=>{ document.getElementById('map-tooltip').style.display='none'; });
+
+  /* Drag to rotate */
+  const wrap2 = document.getElementById('globe-wrap');
+  const dragBehaviour = d3.drag()
+    .on('start', e => {
+      globeDragStart   = [e.x, e.y];
+      globeRotateStart = globeProjection.rotate();
+      wrap2.classList.add('dragging');
+    })
+    .on('drag', e => {
+      const dx = e.x - globeDragStart[0];
+      const dy = e.y - globeDragStart[1];
+      const zoomRatio = globeBaseR ? (globeProjection.scale() / globeBaseR) : 1;
+      const sensitivity = 0.3 / zoomRatio;
+      const r = globeProjection.rotate();
+      globeProjection.rotate([
+        globeRotateStart[0] + dx * sensitivity,
+        Math.max(-90, Math.min(90, globeRotateStart[1] - dy * sensitivity)),
+        r[2]
+      ]);
+      redrawGlobe(g, svgSel, cx, cy);
+    })
+    .on('end', () => {
+      wrap2.classList.remove('dragging');
+    });
+
+  svgSel.call(dragBehaviour);
+
+  /* Scroll/pinch to zoom the globe */
+  wrap2.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    scaleGlobe(factor, g, svgSel, cx, cy, R);
+  }, {passive: false});
+}
+
+function redrawGlobe(g, svgSel, cx, cy){
+  const iso3 = buildIso3Map();
+  const useVal = getUseVal(mapMetric);
+  const data = getMapDataAtIdx(mapYmIdx);
+  const mx = getLegendMax(data,useVal);
+
+  svgSel.select('.globe-graticule').attr('d', globePath);
+  g.selectAll('.globe-country').attr('d', globePath)
+    .each(function(d){
+      const iso = iso3[+d.id];
+      const info = iso ? data[iso] : null;
+      let fill;
+      if(iso==='UKR') fill='#fdd49e';
+      else if(!info||info.tot<=0) fill='url(#globe-hatch)';
+      else fill=colorScale(useVal(info),mx);
+      d3.select(this).attr('fill', fill)
+        .attr('stroke', '#9a9590')
+        .attr('stroke-width', '0.4');
+    });
+}
+
+function updateGlobeColors(){
+  const g   = d3.select('#globe-g');
+  const svg = d3.select('#globe-svg');
+  const W   = +svg.attr('width') || 600;
+  const H   = +svg.attr('height') || 380;
+  redrawGlobe(g, svg, W/2, H/2);
+}
+
+function globeResTier(k){ return k>=3 ? 2 : k>=2 ? 1 : 0; }
+
+function applyGlobeResolution(g, svgSel, cx, cy){
+  if(!globeBaseR) return;
+  const k = globeProjection.scale() / globeBaseR;
+  const tier = globeResTier(k);
+  if(tier === globeLastResTier) return;
+  globeLastResTier = tier;
+  let src = globeGeo;
+  if(tier>=2 && mapGeo10) src = mapGeo10;
+  else if(tier>=1 && mapGeo50) src = mapGeo50;
+  const features = fixCrimeaFeatures(topojson.feature(src, src.objects.countries).features).filter(f=>f.id!=='010');
+  const gSel = g || d3.select('#globe-g');
+  gSel.selectAll('.globe-country').remove();
+  const iso3 = buildIso3Map();
+  const useVal = getUseVal(mapMetric);
+  const data = getMapDataAtIdx(mapYmIdx);
+  const mx = getLegendMax(data,useVal);
+  gSel.selectAll('.globe-country').data(features).enter().append('path')
+    .attr('class','globe-country')
+    .attr('d', globePath)
+    .attr('stroke','#9a9590').attr('stroke-width',0.4)
+    .attr('cursor','pointer')
+    .each(function(d){
+      const iso = iso3[+d.id];
+      const info = iso ? data[iso] : null;
+      let fill;
+      if(iso==='UKR') fill='#fdd49e';
+      else if(!info||info.tot<=0) fill='url(#globe-hatch)';
+      else fill=colorScale(useVal(info),mx);
+      d3.select(this).attr('fill', fill);
+    })
+    .on('mousemove', showGlobeTT)
+    .on('mouseleave', ()=>{ document.getElementById('map-tooltip').style.display='none'; });
+}
+
+function scaleGlobe(factor, g, svgSel, cx, cy, baseR){
+  if(!globeProjection) return;
+  const minR = (baseR || getGlobeRadius()) * 0.5;
+  const maxR = (baseR || getGlobeRadius()) * 2.8;
+  const newR = Math.max(minR, Math.min(maxR, globeProjection.scale() * factor));
+  globeProjection.scale(newR);
+  /* resize the ocean circle */
+  (svgSel || d3.select('#globe-svg')).select('.globe-ocean').attr('r', newR);
+  const gSel   = g   || d3.select('#globe-g');
+  const svgS   = svgSel || d3.select('#globe-svg');
+  const cxVal  = cx  || +d3.select('#globe-svg').attr('width')  / 2 || 300;
+  const cyVal  = cy  || +d3.select('#globe-svg').attr('height') / 2 || 190;
+  applyGlobeResolution(gSel, svgS, cxVal, cyVal);
+  redrawGlobe(gSel, svgS, cxVal, cyVal);
+}
+
+(function wireGlobeZoomButtons(){
+  document.getElementById('map-zoom-in').addEventListener('click', () => {
+    if(mapViewMode === 'globe') scaleGlobe(1.6);
+  });
+  document.getElementById('map-zoom-out').addEventListener('click', () => {
+    if(mapViewMode === 'globe') scaleGlobe(1/1.6);
+  });
+  document.getElementById('map-zoom-reset').addEventListener('click', () => {
+    if(mapViewMode === 'globe' && globeProjection) {
+      globeProjection.scale(getGlobeRadius());
+      const svg = d3.select('#globe-svg');
+      svg.select('.globe-ocean').attr('r', getGlobeRadius());
+      redrawGlobe(d3.select('#globe-g'), svg,
+        +svg.attr('width')/2, +svg.attr('height')/2);
+    }
+  });
+})();
+
+function showGlobeTT(event, d){
+  const iso3 = buildIso3Map();
+  const iso  = iso3[+d.id];
+  const info = iso ? getCurrentRangeMapData()[iso] : null;
+  const tt   = document.getElementById('map-tooltip');
+  if(!info){ tt.style.display='none'; return; }
+
+  tt.innerHTML = buildTooltipHTML(info);
+  positionTooltip(tt, event);
+}
+
+/* Wire up the toggle buttons */
+(function(){
+  document.getElementById('view-btn-map').addEventListener('click', ()=>{
+    if(mapViewMode==='map') return;
+    mapViewMode = 'map';
+    document.getElementById('view-btn-map').classList.add('active');
+    document.getElementById('view-btn-globe').classList.remove('active');
+    document.getElementById('map-svg-wrap').style.display = '';
+    document.getElementById('map-zoom-controls').style.display = '';
+    document.getElementById('globe-wrap').classList.remove('active');
+    document.getElementById('map-tooltip').style.display = 'none';
+  });
+
+  document.getElementById('view-btn-globe').addEventListener('click', ()=>{
+    if(mapViewMode==='globe') return;
+    mapViewMode = 'globe';
+    document.getElementById('view-btn-globe').classList.add('active');
+    document.getElementById('view-btn-map').classList.remove('active');
+    document.getElementById('map-svg-wrap').style.display = 'none';
+    const gw = document.getElementById('globe-wrap');
+    gw.classList.add('active');
+    /* Use cached world geo if available */
+    if(mapGeo) globeGeo = mapGeo;
+    buildGlobe();
+  });
+})();
+
+/* ════════════════════════════════════
+   LINE
+════════════════════════════════════ */
+/* Greedily wraps `name` into as many lines as needed so each line's real
+   rendered width (via measureFn) fits within maxWidth. Falls back to a
+   single unwrapped line for single-word names (nothing left to break on). */
+function wrapLabelAuto(name, maxWidth, measureFn) {
+  if (measureFn(name) <= maxWidth) return [name];
+  const words = name.split(' ');
+  if (words.length === 1) return [name];
+  const lines = [];
+  let cur = '';
+  words.forEach(w => {
+    const test = cur ? cur + ' ' + w : w;
+    if (cur && measureFn(test) > maxWidth) { lines.push(cur); cur = w; }
+    else cur = test;
+  });
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function renderLine(){
+  const metric=document.querySelector('#line-metric-dropdown .sort-custom-option.active')?.dataset.value||'total';
+  const toPlot=[...selected];
+
+  /* Fixed native canvas size (matches .line-chart-wrap at the explorer's
+     native 1155×730 layout). Hard-coded rather than measured live via
+     clientWidth/clientHeight: live measurement raced with the panel's
+     display/zoom transitions (entering fullscreen, or switching tabs away
+     from and back to Line while in fullscreen), occasionally reading a
+     transitional size and badly distorting the y-scale. The outer
+     .explorer-wrap is scaled uniformly (CSS transform in windowed mode,
+     CSS zoom in fullscreen), so pinning this internal SVG to its native
+     pixel size and letting that outer scale handle the rest reproduces
+     the same visual result every time. */
+  const LINE_CHART_NATIVE_W=953, LINE_CHART_NATIVE_H=489;
+  let W=LINE_CHART_NATIVE_W, H=LINE_CHART_NATIVE_H;
+  /* In standalone/fluid mode the wrap's height follows the window, so the
+     native height no longer matches the box the SVG actually gets — pinning it
+     would letterbox the chart (viewBox meet). Measure the content box instead. clientWidth/clientHeight are layout px, unaffected by the outer
+     transform:scale, so this can't race with it. Fullscreen (CSS zoom) still
+     uses the native constants, keeping the behaviour described above. */
+  if(document.documentElement.classList.contains('fluid') && !document.fullscreenElement){
+    const lw=document.querySelector('.line-chart-wrap');
+    if(lw){
+      const cs=getComputedStyle(lw);
+      const mw=lw.clientWidth  - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const mh=lw.clientHeight - parseFloat(cs.paddingTop)  - parseFloat(cs.paddingBottom);
+      if(mw>80 && mh>80){ W=Math.round(mw); H=Math.round(mh); }
+    }
+  }
+  const lcStyle=currentLineChartStyle();
+  const pad={t:lcStyle.padTop,r:lcStyle.padRight,b:lcStyle.padBottom,l:lcStyle.padLeft};
+  const iW=W-pad.l-pad.r,iH=H-pad.t-pad.b;
+
+  const svg=d3.select('#line-svg').attr('viewBox',`0 0 ${W} ${H}`).attr('width',W).attr('height',H);
+  svg.selectAll('*').remove();
+  const g=svg.append('g').attr('transform',`translate(${pad.l},${pad.t})`);
+
+  /* x-axis: one point per year-month from start to end of timeline range */
+  const xDomain=YMS.slice(mapYmStartIdx,mapYmIdx+1).map(ym=>ymKey(ym.y,ym.m));
+
+  const lineUseVal = getUseVal(metric);
+  const allVals=toPlot.flatMap(c=>buildCumulativeSeries(c).map(d=>lineUseVal(d)));
+  const mx=Math.max(...allVals,0.01);
+
+  const xSc=d3.scalePoint().domain(xDomain).range([0,iW]);
+  const ySc=d3.scaleLinear().domain([0,mx*1.1]).range([iH,0]).nice();
+
+  const yTickVals = ySc.ticks(5).length >= 2 ? ySc.ticks(5) : ySc.ticks(2).length >= 2 ? ySc.ticks(2) : [0, ySc.domain()[1]];
+
+  g.append('g').selectAll('line').data(yTickVals).enter().append('line')
+    .attr('x1',0).attr('x2',iW).attr('y1',d=>ySc(d)).attr('y2',d=>ySc(d))
+    .attr('stroke','#e0e0e0');
+
+  /* x-axis: only show Jan of each year as tick, within the selected range */
+  const janTicks=YMS.slice(mapYmStartIdx,mapYmIdx+1).filter(ym=>ym.m===1).map(ym=>ymKey(ym.y,ym.m));
+
+  /* Vertical grid lines at each Jan tick */
+  g.append('g').selectAll('line').data(janTicks).enter().append('line')
+    .attr('x1',d=>xSc(d)).attr('x2',d=>xSc(d)).attr('y1',0).attr('y2',iH)
+    .attr('stroke','#e0e0e0');
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(xSc).tickValues(janTicks).tickFormat(k=>{const ym=YMS.find(z=>ymKey(z.y,z.m)===k);return ym?ym.y:'';}).tickSize(3).tickPadding(8))
+    .call(g=>g.select('.domain').attr('stroke','#ddd'))
+    .call(g=>g.selectAll('text').style('font-size',lcStyle.xAxisFontSize).style('fill','#000'));
+
+  g.append('g')
+    .call(d3.axisLeft(ySc).tickValues(yTickVals).tickFormat(d=>metric==='pct'?d.toFixed(2)+'%':d.toFixed(1)))
+    .call(g=>g.select('.domain').remove())
+    .call(g=>g.selectAll('line').attr('stroke','#eee'))
+    .call(g=>g.selectAll('text').style('font-size',lcStyle.yAxisFontSize).style('fill','#000').attr('dy', d => d === yTickVals[0] ? '-0.1em' : null));
+
+  const yLabelLines = metric==='pct' ? ['% of 2021 GDP'] : ['€ billion'];
+  const yLabelLineGap = 15;
+  const yLabelTopY = pad.t - (yLabelLines.length * yLabelLineGap + 6);
+  const yLabelEl = svg.append('text')
+    .attr('text-anchor','start')
+    .attr('font-size',lcStyle.unitLabelFontSize)
+    .attr('font-weight','400')
+    .attr('fill','#000');
+  yLabelLines.forEach((line, i) =>
+    yLabelEl.append('tspan')
+      .attr('x', -30)
+      .attr('y', yLabelTopY + i * yLabelLineGap)
+      .text(line)
+  );
+
+  const lineFn=d3.line().x(d=>xSc(ymKey(d.y,d.m))).y(d=>ySc(d.v));
+
+  const lineHoverX=g.append('line')
+    .attr('y1',0).attr('y2',iH)
+    .attr('stroke','#999').attr('stroke-width',1)
+    .attr('stroke-dasharray','3,3')
+    .style('display','none');
+  const lineHoverY=g.append('line')
+    .attr('x1',0).attr('x2',iW)
+    .attr('stroke','#999').attr('stroke-width',1)
+    .attr('stroke-dasharray','3,3')
+    .style('display','none');
+  function showLineCrosshair(px,py){
+    lineHoverX.attr('x1',px).attr('x2',px).style('display',null);
+    lineHoverY.attr('y1',py).attr('y2',py).style('display',null);
+  }
+  function hideLineCrosshair(){
+    lineHoverX.style('display','none');
+    lineHoverY.style('display','none');
+  }
+
+  /* End-of-line labels are drawn past x=iW into the wrap's right margin, but the
+     SVG's viewBox often doesn't map 1:1 onto its rendered box (preserveAspectRatio
+     "meet" letterboxes when the wrap's aspect ratio isn't exactly W:H), so the real
+     available width for those labels isn't simply `pad.r` in local units — it has to
+     be measured against the wrap's actual on-screen right edge, then converted back
+     into local units. */
+  const labelMeasurer=g.append('text').attr('font-size',lcStyle.endLabelFontSize).style('visibility','hidden');
+  const measureLineLabel=str=>{ labelMeasurer.text(str); return labelMeasurer.node().getComputedTextLength(); };
+  const lineWrapEl=document.querySelector('.line-chart-wrap');
+  const svgRectForLabels=svg.node().getBoundingClientRect();
+  const wrapRectForLabels=lineWrapEl.getBoundingClientRect();
+  const lblScale=Math.min(svgRectForLabels.width/W, svgRectForLabels.height/H);
+  const lblOffsetX=(svgRectForLabels.width-W*lblScale)/2;
+  const labelStartLocalX=pad.l+(iW+6);
+  const labelStartPx=svgRectForLabels.left+lblOffsetX+labelStartLocalX*lblScale;
+  const maxLabelWidth=Math.max(10,(wrapRectForLabels.right-labelStartPx-4)/lblScale);
+
+  const allSeries=[];
+  toPlot.forEach((c,ci)=>{
+    const col=LINE_COLORS[ci%LINE_COLORS.length];
+    const pts=buildCumulativeSeries(c).map(d=>({y:d.y,m:d.m,v:lineUseVal(d)}));
+    if(!pts.length) return;
+    allSeries.push({c,pts});
+    g.append('path').datum(pts).attr('fill','none').attr('stroke',col).attr('stroke-width',2.8).attr('d',lineFn);
+    g.append('path').datum(pts).attr('fill','none').attr('stroke','transparent').attr('stroke-width',16).attr('d',lineFn)
+      .attr('cursor','default')
+      .on('mousemove',(event)=>{
+        showCountryTT(event,c);
+        const [mx0]=d3.pointer(event);
+        const step=iW/(pts.length-1||1);
+        let idx=Math.round(mx0/step);
+        idx=Math.max(0,Math.min(pts.length-1,idx));
+        const pt=pts[idx];
+        showLineCrosshair(xSc(ymKey(pt.y,pt.m)),ySc(pt.v));
+      })
+      .on('mouseleave',()=>{hideCountryTT();hideLineCrosshair();});
+    /* dots only at months that actually have data for this country */
+    const realKeys=new Set(MONTHLY.filter(d=>d.c===c).map(d=>ymKey(d.y,d.m)));
+    pts.forEach(pt=>{
+      if(realKeys.has(ymKey(pt.y,pt.m)))
+        g.append('circle').attr('cx',xSc(ymKey(pt.y,pt.m))).attr('cy',ySc(pt.v)).attr('r',2.5).attr('fill',col)
+          .attr('cursor','default')
+          .on('mousemove',(event)=>{
+            showCountryTT(event,c);
+            showLineCrosshair(xSc(ymKey(pt.y,pt.m)),ySc(pt.v));
+          })
+          .on('mouseleave',()=>{hideCountryTT();hideLineCrosshair();});
+    });
+    const last=pts[pts.length-1];
+    const lx=iW + 6, ly=ySc(last.v);
+    const lines=wrapLabelAuto(c, maxLabelWidth, measureLineLabel);
+    const t=g.append('text')
+      .attr('x',lx)
+      .attr('y',ly-(lines.length-1)*7)
+      .attr('font-size',lcStyle.endLabelFontSize)
+      .attr('fill',col)
+      .attr('text-anchor','start');
+    lines.forEach((line,i)=>t.append('tspan').attr('x',lx).attr('dy',i===0?'0':'1.1em').text(line));
+  });
+  labelMeasurer.remove();
+
+  /* shared full-area hover target so the crosshair (and tooltip for the
+     nearest series) shows anywhere over the chart, not just directly on a
+     line's thin hover-stroke, matching en_total_allocations.html */
+  if(allSeries.length){
+    const overlay=g.append('rect')
+      .attr('x',0).attr('y',0).attr('width',iW).attr('height',iH)
+      .attr('fill','transparent')
+      .style('cursor','default');
+    overlay.on('mousemove',(event)=>{
+      const [mx0,my0]=d3.pointer(event);
+      const step=iW/(allSeries[0].pts.length-1||1);
+      let idx=Math.round(mx0/step);
+      idx=Math.max(0,Math.min(allSeries[0].pts.length-1,idx));
+      let nearest=allSeries[0], best=Infinity;
+      allSeries.forEach(s=>{
+        const py=ySc(s.pts[idx].v);
+        const dist=Math.abs(py-my0);
+        if(dist<best){best=dist;nearest=s;}
+      });
+      const pt=nearest.pts[idx];
+      showCountryTT(event,nearest.c);
+      showLineCrosshair(xSc(ymKey(pt.y,pt.m)),ySc(pt.v));
+    }).on('mouseleave',()=>{hideCountryTT();hideLineCrosshair();});
+  }
+
+  const legend=document.getElementById('line-legend');
+  legend.style.fontSize=lcStyle.legendFontSize;
+  legend.innerHTML=toPlot.map((c,i)=>`<span class="legend-item">
+    <span class="legend-dot" style="background:${LINE_COLORS[i%LINE_COLORS.length]}"></span>${c}</span>`).join('');
+}
+
+(function(){
+  const btn=document.getElementById('line-metric-btn');
+  const dropdown=document.getElementById('line-metric-dropdown');
+  const label=document.getElementById('line-metric-label');
+  const options=dropdown.querySelectorAll('.sort-custom-option');
+  btn.addEventListener('click',e=>{e.stopPropagation();dropdown.classList.toggle('open');});
+  document.addEventListener('click',()=>dropdown.classList.remove('open'));
+  options.forEach(opt=>opt.addEventListener('click',e=>{
+    e.stopPropagation();
+    sharedMetric=opt.dataset.value;
+    syncMetricDropdowns(sharedMetric);
+    syncEuSelection();
+    dropdown.classList.remove('open');
+    const titleText=document.getElementById('chart-title-text');
+    if(titleText) titleText.textContent=metricTitle(sharedMetric);
+    const sub=document.getElementById('chart-subtitle');
+    if(sub) sub.textContent=metricSubtitle(sharedMetric);
+    if(activeTab==='line') renderLine();
+  }));
+})();
+
+/* ════════════════════════════════════
+   BAR
+════════════════════════════════════ */
+const TOP_SPACING_PX=20, BOTTOM_SPACING_PX=5; // gap above first bar / below last bar, in px
+
+function renderBar(){
+  const metric=document.querySelector('#bar-metric-dropdown .sort-custom-option.active')?.dataset.value||'total';
+  const barUseVal = getUseVal(metric);
+  let rows=getRowData().filter(d=>metric==='alloc_commit'?(d.tot>0||d.commit>0):d.tot>0);
+  rows.sort((a,b)=>(barUseVal(b)??0)-(barUseVal(a)??0));
+  const toPlot=rows.filter(d=>selected.has(d.c));
+
+  const barColors={fin:'#6a9bd8',mil:'#3a5da8',hum:'#a8c4e8'};
+  const ALLOC_COMMIT_COLORS={alloc:'#1a3e8a',commit:'#6a9bd8'};
+
+  const wrap=document.querySelector('.bar-chart-wrap');
+  const controls=document.querySelector('#panel-bar .line-controls');
+  const controlsH=controls?controls.getBoundingClientRect().height:0;
+  // Hard cap: the scrollable VIEWPORT itself starts below the dropdown (margin-top, not
+  // padding-top), so the dropdown's screen area is entirely outside the scrollable box at every
+  // scroll position — not just at scrollTop 0. Content can never end up rendered behind it.
+  wrap.style.marginTop=controlsH+'px';
+  // clientWidth includes the wrap's horizontal padding, but the SVG is laid out inside the
+  // content box — sizing it to clientWidth pushes its right edge past that box, where
+  // overflow-x:hidden clips it. The value labels sit in exactly that clipped strip, so long
+  // ones lose their tail.
+  const wrapCS=getComputedStyle(wrap);
+  const wrapPadX=(parseFloat(wrapCS.paddingLeft)||0)+(parseFloat(wrapCS.paddingRight)||0);
+  const W=Math.max(200,(wrap.clientWidth||700)-wrapPadX);
+  const padL=75, padR=75;
+  const n=toPlot.length;
+  const MIN_BAR=22, GAP_RATIO=0.45;
+  const containerH=(wrap.clientHeight||400)-TOP_SPACING_PX-BOTTOM_SPACING_PX;
+  const fitBH=n>0 ? Math.floor(containerH * 0.9 / (n + (n-1)*GAP_RATIO)) : containerH * 0.9;
+  const MAX_BAR=Math.floor(containerH * 0.36);
+  const bH=Math.max(MIN_BAR, Math.min(MAX_BAR, fitBH));
+  const gap=Math.max(8, Math.round(bH * GAP_RATIO));
+  const padT=TOP_SPACING_PX;
+
+  d3.select('#bar-svg').selectAll('*').remove();
+  const svg=d3.select('#bar-svg');
+
+  const vals=toPlot.map(d=>barUseVal(d)??0);
+  const mx=Math.max(...vals,0.001);
+  const xSc=d3.scaleLinear().domain([0,mx]).range([0,W-padL-padR]);
+
+  const barLabelMeasurer=svg.append('text').attr('font-size','0.82rem').style('visibility','hidden');
+  const measureBarLabel=str=>{ barLabelMeasurer.text(str); return barLabelMeasurer.node().getComputedTextLength(); };
+  const maxBarLabelWidth=padL-8-6; // 6px safety margin so wrapped lines never sit flush against x=0 — at export scale that flush edge clips glyphs
+  const lineH=11;
+
+  // Row height must grow to fit wrapped multi-line aggregate labels, or adjacent
+  // rows' labels overlap — the bar's own thickness (bH) is not always tall enough.
+  const rowInfo=toPlot.map(d=>{
+    const bLines=wrapLabelAuto(d.c, maxBarLabelWidth, measureBarLabel);
+    const rowH=Math.max(bH, bLines.length*lineH+4);
+    return {bLines,rowH};
+  });
+  const barsH=rowInfo.reduce((s,r)=>s+r.rowH,0)+(n-1)*gap;
+  const H=padT+barsH+BOTTOM_SPACING_PX;
+  svg.attr('width',W).attr('height',H).attr('viewBox',`0 0 ${W} ${H}`);
+
+  svg.append('line')
+    .attr('x1',padL).attr('x2',padL)
+    .attr('y1',padT).attr('y2',padT+barsH)
+    .attr('stroke','#d0ccc4').attr('stroke-width',1);
+
+  let yCursor=padT;
+  toPlot.forEach((d,i)=>{
+    const {bLines,rowH}=rowInfo[i];
+    const y=yCursor+(rowH-bH)/2;
+    yCursor+=rowH+gap;
+    const val=barUseVal(d)??0;
+    const bw=xSc(val);
+    const isSel=selected.has(d.c);
+    const g=svg.append('g').attr('transform',`translate(${padL},${y})`);
+
+    const t=g.append('text').attr('x',-8).attr('text-anchor','end')
+      .attr('font-size','0.82rem').attr('fill','#333').attr('font-weight','400');
+    const startY=bH/2-(bLines.length-1)*lineH/2;
+    bLines.forEach((line,i)=>t.append('tspan').attr('x',-8).attr('y',startY+i*lineH).attr('text-anchor','end').text(line));
+
+    if(metric==='total'){
+      let x=0;
+      [{v:d.mil||0,col:'#3a5da8'},{v:d.fin||0,col:'#6a9bd8'},{v:d.hum||0,col:'#a8c4e8'}].forEach(s=>{
+        const sw=xSc(s.v);
+        if(sw>0.5){g.append('rect').attr('x',x).attr('y',0).attr('width',sw).attr('height',bH).attr('fill',s.col).attr('rx',1);x+=sw;}
+      });
+    } else if(metric==='alloc_commit'){
+      let x=0;
+      [{v:d.tot||0,col:ALLOC_COMMIT_COLORS.alloc},{v:d.commit||0,col:ALLOC_COMMIT_COLORS.commit}].forEach(s=>{
+        const sw=xSc(s.v);
+        if(sw>0.5){g.append('rect').attr('x',x).attr('y',0).attr('width',sw).attr('height',bH).attr('fill',s.col).attr('rx',1);x+=sw;}
+      });
+    } else {
+      const barCol = barColors[metric] || '#3a5da8';
+      g.append('rect').attr('x',0).attr('y',0).attr('width',Math.max(bw,1)).attr('height',bH).attr('fill',barCol).attr('rx',1);
+    }
+
+    const lbl=metric==='pct'?(d.pct!=null?fmt(d.pct,2)+'%':'–'):fmt(val)+'B';
+    g.append('text').attr('x',bw+6).attr('y',bH/2).attr('dominant-baseline','middle')
+      .attr('font-size','0.82rem').attr('fill','#888').text(lbl);
+
+    g.append('rect').attr('x',0).attr('y',0).attr('width',Math.max(bw,1)).attr('height',bH)
+      .attr('fill','transparent').attr('cursor','default')
+      .on('mousemove', (event)=>showCountryTT(event, d.c))
+      .on('mouseleave', hideCountryTT);
+  });
+
+  const legend=document.getElementById('bar-legend');
+  if(metric==='total'){
+    legend.style.display='flex';
+    legend.innerHTML=[{col:'#3a5da8',l:'Military'},{col:'#6a9bd8',l:'Financial'},{col:'#a8c4e8',l:'Humanitarian'}]
+      .map(it=>`<span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:${it.col};border-radius:2px;"></span>${it.l}</span>`).join('');
+  } else if(metric==='alloc_commit'){
+    legend.style.display='flex';
+    legend.innerHTML=[{col:ALLOC_COMMIT_COLORS.alloc,l:'Allocations'},{col:ALLOC_COMMIT_COLORS.commit,l:'Commitments'}]
+      .map(it=>`<span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:${it.col};border-radius:2px;"></span>${it.l}</span>`).join('');
+  } else {
+    legend.style.display='none';
+  }
+
+  updateBarScrollSpacing();
+}
+
+// The top gap can never be scrolled past — .bar-chart-wrap's padding-top (set in renderBar to the
+// dropdown's height) makes that region structurally not part of the scrollable content, so there is
+// nothing above it to scroll to. BOTTOM_SPACING only collapses to 0 once scrolled all the way to the
+// end, so a partially-visible gap at the bottom signals more content below.
+function updateBarScrollSpacing(){
+  const wrap=document.querySelector('.bar-chart-wrap');
+  const svg=document.getElementById('bar-svg');
+  if(!wrap||!svg) return;
+  const atBottom=wrap.scrollTop+wrap.clientHeight>=wrap.scrollHeight-1;
+  svg.style.marginBottom=atBottom?'0px':`-${BOTTOM_SPACING_PX}px`;
+}
+document.querySelector('.bar-chart-wrap')?.addEventListener('scroll', updateBarScrollSpacing);
+
+(function(){
+  const btn=document.getElementById('bar-metric-btn');
+  const dropdown=document.getElementById('bar-metric-dropdown');
+  const label=document.getElementById('bar-metric-label');
+  const options=dropdown.querySelectorAll('.sort-custom-option');
+  btn.addEventListener('click',e=>{e.stopPropagation();dropdown.classList.toggle('open');});
+  document.addEventListener('click',()=>dropdown.classList.remove('open'));
+  options.forEach(opt=>opt.addEventListener('click',e=>{
+    e.stopPropagation();
+    sharedMetric=opt.dataset.value;
+    syncMetricDropdowns(sharedMetric);
+    syncEuSelection();
+    dropdown.classList.remove('open');
+    const titleText=document.getElementById('chart-title-text');
+    if(titleText) titleText.textContent=metricTitle(sharedMetric);
+    const sub=document.getElementById('chart-subtitle');
+    if(sub) sub.textContent=metricSubtitle(sharedMetric);
+    if(activeTab==='bar') renderBar();
+  }));
+})();
+
+/* ════════════════════════════════════
+   SHARE / FULLSCREEN
+════════════════════════════════════ */
+const shareBtn=document.getElementById('share-btn');
+const shareDrop=document.getElementById('share-dropdown');
+shareBtn.addEventListener('click',e=>{e.stopPropagation();shareDrop.classList.toggle('open');});
+document.addEventListener('click',()=>shareDrop.classList.remove('open'));
+shareDrop.addEventListener('click',e=>e.stopPropagation());
+
+function toast(msg){
+  const t=document.getElementById('copy-toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+document.getElementById('opt-link').addEventListener('click',()=>{
+  navigator.clipboard.writeText(window.location.href).catch(()=>{});
+  shareDrop.classList.remove('open'); toast('Link copied!');
+});
+/* CSS gives shapes their stroke/fill via stylesheet rules that won't travel with a
+   standalone serialized SVG, so bake the relevant computed styles into inline
+   style attributes on a 1:1 cloned tree before serializing. */
+function inlineComputedStyles(srcEl, destEl){
+  const props = ['fill','stroke','stroke-width','stroke-dasharray','opacity','fill-opacity','stroke-opacity'];
+  const cs = getComputedStyle(srcEl);
+  let style = '';
+  props.forEach(p=>{ const v = cs.getPropertyValue(p); if(v) style += `${p}:${v};`; });
+  if(style) destEl.setAttribute('style', style + (destEl.getAttribute('style')||''));
+  const srcChildren = srcEl.children;
+  const destChildren = destEl.children;
+  for(let i=0;i<srcChildren.length;i++){
+    inlineComputedStyles(srcChildren[i], destChildren[i]);
+  }
+}
+
+function svgToPngImage(svgEl, w, h){
+  return new Promise((resolve,reject)=>{
+    w = Math.max(1, Math.round(w));
+    h = Math.max(1, Math.round(h));
+    const clone = svgEl.cloneNode(true);
+    inlineComputedStyles(svgEl, clone);
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    if(!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const xml = new XMLSerializer().serializeToString(clone);
+    const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w * 2; canvas.height = h * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2,2);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      const out = new Image();
+      out.onload = () => resolve({img: out, w, h});
+      out.onerror = reject;
+      out.src = canvas.toDataURL('image/png');
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+/* rasterScale: how much bigger than live size to render the PNG pixels (for
+   crispness). cssScale: how much bigger the <img>'s CSS box should be than
+   live size. They differ when the clone is later blown up by an ancestor
+   CSS transform (table/bar path) — there the image should keep its native
+   CSS size (cssScale=1) and let the transform do the visual scaling, while
+   still rasterizing at rasterScale so it doesn't blur once transformed. For
+   the globe/line path there's no ancestor transform, so the image's own CSS
+   box must already be the final size (cssScale === rasterScale). */
+async function replaceSvgsWithImages(clonedRoot, liveRoot, rasterScale=1, cssScale=rasterScale){
+  const clonedSvgs = clonedRoot.querySelectorAll('svg');
+  for(const svg of clonedSvgs){
+    const liveSvg = svg.id ? liveRoot.querySelector('#'+CSS.escape(svg.id)) : null;
+    if(!liveSvg) continue;
+    const rect = liveSvg.getBoundingClientRect();
+    if(rect.width < 1 || rect.height < 1) continue;
+    try{
+      const {img} = await svgToPngImage(liveSvg, rect.width*rasterScale, rect.height*rasterScale);
+      img.style.cssText = svg.getAttribute('style') || '';
+      img.style.width = (rect.width*cssScale) + 'px';
+      img.style.height = (rect.height*cssScale) + 'px';
+      img.style.display = 'block';
+      if(svg.getAttribute('class')) img.className = svg.getAttribute('class');
+      if(svg.id) img.id = svg.id;
+      svg.replaceWith(img);
+    }catch(e){ /* leave the original svg if rasterizing fails */ }
+  }
+}
+
+/* <canvas> elements clone as blank (their pixels aren't part of the DOM), so
+   copy the live canvas's drawn pixels onto the clone before it's rasterized. */
+function replaceCanvasesWithImages(clonedRoot, liveRoot){
+  clonedRoot.querySelectorAll('canvas').forEach(canvas=>{
+    const liveCanvas = canvas.id ? liveRoot.querySelector('#'+CSS.escape(canvas.id)) : null;
+    if(!liveCanvas) return;
+    const img = document.createElement('img');
+    img.src = liveCanvas.toDataURL('image/png');
+    img.style.cssText = canvas.getAttribute('style') || '';
+    if(canvas.getAttribute('class')) img.className = canvas.getAttribute('class');
+    canvas.replaceWith(img);
+  });
+}
+
+/* The flat map SVG is letterboxed inside its wrap box (preserveAspectRatio
+   "xMidYMid meet"), leaving cream padding above/below or left/right of the
+   actual drawn world. Crop the map-svg-wrap down to the rendered content's
+   on-screen box so the exported image has no dead space. */
+function getMapContentRect(){
+  const mapG = document.getElementById('map-g');
+  const svgEl = document.getElementById('choropleth-svg');
+  if(!mapG || !svgEl || mapViewMode !== 'map') return null;
+  let bbox;
+  try{ bbox = mapG.getBBox(); }catch(e){ return null; }
+  if(!bbox || bbox.width<=0 || bbox.height<=0) return null;
+  const pt1 = svgEl.createSVGPoint(); pt1.x = bbox.x; pt1.y = bbox.y;
+  const pt2 = svgEl.createSVGPoint(); pt2.x = bbox.x+bbox.width; pt2.y = bbox.y+bbox.height;
+  const ctm = mapG.getScreenCTM();
+  if(!ctm) return null;
+  const p1 = pt1.matrixTransform(ctm), p2 = pt2.matrixTransform(ctm);
+  const wrapRect = document.getElementById('map-svg-wrap').getBoundingClientRect();
+  const left = p1.x - wrapRect.left, top = p1.y - wrapRect.top;
+  const right = p2.x - wrapRect.left, bottom = p2.y - wrapRect.top;
+  /* Cropping to the exact content bbox and stretching it to fill EXPORT_W
+     makes the export look noticeably more zoomed-in than the live map, which
+     always keeps some letterboxed margin around the world. Pad back a slice
+     of that margin (clamped to the wrap) so the export breathes the same way. */
+  const PAD_FRAC = 0.06;
+  const padX = (right - left) * PAD_FRAC, padY = (bottom - top) * PAD_FRAC;
+  return {
+    left: Math.max(0, left - padX),
+    top: Math.max(0, top - padY),
+    right: Math.min(wrapRect.width, right + padX),
+    bottom: Math.min(wrapRect.height, bottom + padY)
+  };
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   IMAGE-EXPORT STYLE SETTINGS — tweak these to change the exported PNG.
+
+   All sizes are px of the export layout (the card is laid out `width` px
+   wide, then rendered at width × pixelRatio actual image pixels).
+
+   - width          : exported image width, per view. The HEIGHT follows
+                      automatically: map/globe/line keep their on-screen
+                      aspect ratio; table/bar grow as tall as their content
+                      (all rows / all bars), so only width is settable there.
+   - pixelRatio     : resolution multiplier for the final PNG (2 = retina).
+                      Changes sharpness/file size, not layout proportions.
+   - titleFontSize / subtitleFontSize / yearLabelFontSize : header text.
+   - logoHeight     : Kiel logo height in the top-right corner.
+   - headerPadding  : CSS padding of the header block. The 2nd value (right
+                      padding, 360px) must stay wide enough that the title
+                      doesn't run underneath the logo.
+   - footerFontSize / footerPadding : the "Data source: …" note at the bottom.
+   - legendFontSize : the color-scale / series legend of each view.
+   - barChartTopGap / barChartBottomGap : gap (px, at pre-scale/live size —
+                      grows proportionally with the export) between the
+                      header's bottom rule and the first bar, and between the
+                      last bar and the legend row below it. Independent of
+                      the on-screen TOP_SPACING_PX/BOTTOM_SPACING_PX, which
+                      are sized for the live scrollable viewport, not a
+                      static export.
+   - barLegendGap   : gap (px, pre-scale) between the last bar and the
+                      legend row underneath it, in the bar export.
+   ═════════════════════════════════════════════════════════════════════ */
+const EXPORT_STYLE = {
+  width:             { map: 1600, globe: 1600, line: 1600, table: 1600, bar: 1600 },
+  pixelRatio:        2,
+  titleFontSize:     47,
+  subtitleFontSize:  25,
+  yearLabelFontSize: 25,
+  logoHeight:        100,
+  headerPadding:     '18px 360px 14px 22px',
+  footerFontSize:    23,
+  footerPadding:     '16px 22px',
+  legendFontSize:    { map: 23, globe: 23, line: 28, bar: 18 },
+  barChartTopGap:    20,
+  barChartBottomGap: 20,
+  barLegendGap:      14,
+  tableHeaderFontSize: 15,
+};
+
+async function copyChartAsImage(){
+  const panel = document.getElementById('panel-' + activeTab);
+  if(!panel) return;
+
+  const exportView = activeTab === 'map' ? (mapViewMode === 'map' ? 'map' : 'globe') : activeTab;
+  const EXPORT_W = EXPORT_STYLE.width[exportView];
+
+  const card = document.createElement('div');
+  /* position:absolute, not fixed — html2canvas special-cases position:fixed
+     elements to fit within its emulated viewport height, silently clipping
+     anything taller (bar/table exports with many rows). Absolute just grows
+     the document's scroll height, which html2canvas captures in full. */
+  card.style.cssText = `position:absolute;left:-99999px;top:0;width:${EXPORT_W}px;background:#f6f1e7;font-family:${getComputedStyle(document.body).fontFamily};color:#1a1a1a;`;
+
+  const header = document.createElement('div');
+  header.style.cssText = `position:relative;padding:${EXPORT_STYLE.headerPadding};border-bottom:1px solid #ddd6c8;box-sizing:border-box;`;
+  header.innerHTML = `
+    <div style="font-size:${EXPORT_STYLE.titleFontSize}px;font-weight:700;line-height:1.25;color:#174abb;margin-bottom:8px;">${document.getElementById('chart-title-text').textContent}</div>
+    <div style="font-size:${EXPORT_STYLE.subtitleFontSize}px;line-height:1.5;max-width:1400px;">${document.getElementById('chart-subtitle').textContent}</div>
+    <div style="font-size:${EXPORT_STYLE.yearLabelFontSize}px;line-height:1.5;color:#6b6b6b;margin-top:2px;">${document.getElementById('year-label').textContent}</div>
+  `;
+  const logoWrap = document.createElement('div');
+  logoWrap.style.cssText = `position:absolute;top:18px;right:18px;height:${EXPORT_STYLE.logoHeight}px;display:flex;align-items:center;`;
+  const logoImg = document.querySelector('.kiel-logo img');
+  const logoClone = logoImg.cloneNode(true);
+  logoClone.style.cssText = 'height:100%;width:auto;display:block;';
+  logoWrap.appendChild(logoClone);
+  header.appendChild(logoWrap);
+
+  /* Screenshots always use the generic MAP_INITIAL_ZOOM framing rather than
+     whatever pan/zoom the user currently has live, so exports are consistent
+     regardless of how the map was left on screen. Temporarily snap to it,
+     capture, then restore the user's actual transform. */
+  let restoreMapTransform = null;
+  if(mapViewMode==='map' && mapZoomBehaviour && mapZoomSvgEl){
+    const priorTransform = d3.zoomTransform(mapZoomSvgEl);
+    const resetTransform = d3.zoomIdentity.translate(MAP_INITIAL_ZOOM.x, MAP_INITIAL_ZOOM.y).scale(MAP_INITIAL_ZOOM.k);
+    d3.select(mapZoomSvgEl).call(mapZoomBehaviour.transform, resetTransform);
+    restoreMapTransform = () => d3.select(mapZoomSvgEl).call(mapZoomBehaviour.transform, priorTransform);
+  }
+
+  const mapContentRect = getMapContentRect();
+
+  const panelClone = panel.cloneNode(true);
+  panelClone.classList.add('active');
+  panelClone.querySelectorAll('.line-controls, .map-zoom-controls, .view-toggle-wrap').forEach(el=>el.remove());
+  panelClone.querySelectorAll('.sort-arrow').forEach(el=>el.remove());
+
+  /* Table export only includes the countries currently selected (when there
+     is a selection) — otherwise it's the full list. The orange highlight is
+     dropped since every remaining row is itself the selection at that point,
+     making the highlight redundant. */
+  if(activeTab === 'table' && selected.size > 0){
+    panelClone.querySelectorAll('#tbl-body tr').forEach(tr=>{
+      const name = tr.children[0]?.textContent;
+      if(!selected.has(name)) tr.remove();
+      else tr.classList.remove('highlighted');
+    });
+  }
+
+  const panelWrap = document.createElement('div');
+  panelWrap.style.cssText = `position:relative;width:${EXPORT_W}px;overflow:hidden;background:#f6f1e7;`;
+
+  /* How the per-svg rasterization in replaceSvgsWithImages() should scale up
+     relative to live on-screen size — set below for the globe/line/table/bar
+     branch; the map branch rasterizes the choropleth itself and never calls
+     replaceSvgsWithImages on it. */
+  let svgRasterScale = 1, svgCssScale = 1;
+
+  if(mapContentRect){
+    /* Map view: rasterize only the map's actual drawn content (cropping out the
+       cream letterboxing), then stack the legend directly underneath. */
+    try{
+      const liveSvg = document.getElementById('choropleth-svg');
+      const wrapRect = document.getElementById('map-svg-wrap').getBoundingClientRect();
+      const {img: fullImg} = await svgToPngImage(liveSvg, wrapRect.width, wrapRect.height);
+      /* Inset the crop by a hairline so the boundary row doesn't land exactly on
+         the bbox edge, which can pick up a faint seam artifact from rasterizing
+         the SVG (visible as a thin line along the top/bottom of the export). */
+      const INSET = 2;
+      const sx = mapContentRect.left * 2 + INSET, sy = mapContentRect.top * 2 + INSET;
+      const sw = (mapContentRect.right - mapContentRect.left) * 2 - INSET*2, sh = (mapContentRect.bottom - mapContentRect.top) * 2 - INSET*2;
+      const cropCanvas = document.createElement('canvas');
+      const outH = Math.round(EXPORT_W * sh / sw);
+      cropCanvas.width = EXPORT_W; cropCanvas.height = outH;
+      cropCanvas.getContext('2d').drawImage(fullImg, sx, sy, sw, sh, 0, 0, EXPORT_W, outH);
+      const mapCropImg = document.createElement('img');
+      mapCropImg.src = cropCanvas.toDataURL('image/png');
+      mapCropImg.style.cssText = `display:block;width:${EXPORT_W}px;height:${outH}px;`;
+      panelWrap.style.overflow = 'visible';
+      panelWrap.appendChild(mapCropImg);
+
+      const legend = panelClone.querySelector('#map-legend');
+      if(legend){
+        legend.style.cssText = `flex-shrink:0;display:flex;align-items:flex-start;gap:0.5rem;padding:10px 22px 14px;font-size:${EXPORT_STYLE.legendFontSize.map}px;color:#6b6b6b;background:#f6f1e7;`;
+        legend.querySelectorAll('.legend-ticks, span').forEach(el=>{ el.style.fontSize = EXPORT_STYLE.legendFontSize.map + 'px'; });
+        panelWrap.appendChild(legend);
+      }
+    }finally{
+      if(restoreMapTransform){ restoreMapTransform(); restoreMapTransform = null; }
+    }
+  } else {
+    /* Globe/line scale cleanly with their container (their SVGs are CSS
+       width:100%/height:100% with a viewBox), so stretching the panel to
+       EXPORT_W at the live aspect ratio renders them crisp at full width.
+       Table/bar are content-height-driven (row count, bar count) rather than
+       aspect-locked to their on-screen box — forcing a fixed height there
+       would clip or squish content that doesn't fit. For those, scale width
+       uniformly to EXPORT_W and let the wrap grow as tall as the content
+       needs instead of capping it to the live aspect ratio. */
+    const panelRect = panel.getBoundingClientRect();
+    const scale = EXPORT_W / panelRect.width;
+    const isFlexHeight = activeTab === 'table' || activeTab === 'bar';
+
+    if(isFlexHeight){
+      /* Lay the clone out at its natural on-screen width (so the table/bar
+         content measures and wraps exactly as it does live, with full row
+         height — not squeezed into a fixed box), then visually scale the
+         whole thing up to EXPORT_W with a CSS transform. transform:scale()
+         doesn't change the element's layout box, so panelWrap's height gets
+         fixed up to the clone's actual rendered height (measured once it's
+         attached to the document, below) times scale. The cloned SVGs keep
+         their native CSS size (cssScale=1) since the ancestor transform
+         already scales them visually; only the raster resolution is bumped
+         so they don't blur once enlarged. */
+      panelWrap.style.overflow = 'visible';
+      panelClone.style.flex = 'none';
+      panelClone.style.width = panelRect.width + 'px';
+      panelClone.style.height = 'auto';
+      panelClone.style.overflow = 'visible';
+      panelClone.style.transform = `scale(${scale})`;
+      panelClone.style.transformOrigin = 'top left';
+      panelWrap.style.height = Math.round(panelRect.height * scale) + 'px';
+      svgRasterScale = scale; svgCssScale = 1;
+
+      /* The live scroll containers (.tbl-scroll for the table, .bar-chart-wrap
+         + its flex:1;min-height:0 parent for the bar chart) clip their content
+         to whatever fit on screen via overflow-y:auto — that's why panel's own
+         scrollHeight doesn't pick up the full content height. Strip the
+         overflow/flex constraints in the clone so every row/bar lays out at
+         its natural size instead of being scrolled out of view. */
+      panelClone.querySelectorAll('.tbl-scroll, .bar-chart-wrap').forEach(el=>{
+        el.style.overflow = 'visible';
+        el.style.flex = 'none';
+        el.style.height = 'auto';
+        el.style.maxHeight = 'none';
+      });
+      if(activeTab === 'table'){
+        panelClone.querySelectorAll('.data-table th').forEach(el=>{ el.style.fontSize = EXPORT_STYLE.tableHeaderFontSize + 'px'; });
+      }
+      /* .bar-chart-wrap's live marginTop reserves space so content clears the
+         absolutely-positioned dropdown above it on screen — that dropdown is
+         stripped from the export (.line-controls removed above), so the
+         reserved space is now dead air. Zero it or the export gets a big
+         lopsided gap above the first bar. */
+      if(activeTab === 'bar'){
+        const barWrapClone = panelClone.querySelector('.bar-chart-wrap');
+        if(barWrapClone) barWrapClone.style.marginTop = '0';
+        /* On screen #bar-legend is a `position:absolute` overlay pinned to
+           the bottom-right of its flex-item parent, which works because that
+           parent's height is bounded by the viewport. In the export, that
+           parent is stretched to height:auto to fit every selected country,
+           and an absolutely-positioned child doesn't reliably keep pace with
+           a JS-mutated auto-height ancestor under html2canvas — with many
+           countries selected the legend (and the layout math anchoring it)
+           can end up placed off the bottom of the rasterized card and never
+           show up. It's already the next sibling after .bar-chart-wrap in
+           markup order, so switching it to a normal flow element is enough
+           to guarantee it renders directly below the last bar. */
+        const barLegendClone = panelClone.querySelector('#bar-legend');
+        if(barLegendClone){
+          const isVisible = barLegendClone.style.display !== 'none';
+          barLegendClone.style.cssText = `display:${isVisible?'flex':'none'};position:static;justify-content:flex-end;align-items:center;gap:18px;background:transparent;padding:0 4px;margin-top:${EXPORT_STYLE.barLegendGap}px;margin-bottom:${EXPORT_STYLE.barChartBottomGap}px;color:#888;pointer-events:none;`;
+        }
+        panelClone.dataset.barLegendVisible = barLegendClone && barLegendClone.style.display !== 'none' ? '1' : '';
+      }
+      panelClone.querySelectorAll('.tbl-scroll, .bar-chart-wrap').forEach(el=>{
+        let p = el.parentElement;
+        while(p && p !== panelClone){
+          p.style.flex = 'none';
+          p.style.minHeight = '0';
+          p.style.height = 'auto';
+          p = p.parentElement;
+        }
+      });
+    } else {
+      const panelAspect = panelRect.height / panelRect.width;
+      panelWrap.style.height = Math.round(EXPORT_W*panelAspect) + 'px';
+      svgRasterScale = scale; svgCssScale = scale;
+    }
+    panelWrap.appendChild(panelClone);
+
+    /* Globe view's color-scale legend lives in #map-legend, same as the flat
+       map; line/bar each have their own series legend. Bump all to match the
+       larger export text sizes used elsewhere in the card. */
+    const globeLegend = panelClone.querySelector('#map-legend');
+    if(globeLegend){
+      globeLegend.style.fontSize = EXPORT_STYLE.legendFontSize.globe + 'px';
+      globeLegend.querySelectorAll('.legend-ticks, span').forEach(el=>{ el.style.fontSize = EXPORT_STYLE.legendFontSize.globe + 'px'; });
+    }
+    const lineLegend = panelClone.querySelector('#line-legend');
+    if(lineLegend){
+      lineLegend.style.fontSize = EXPORT_STYLE.legendFontSize.line + 'px';
+      const dotSize = Math.round(9 * EXPORT_STYLE.legendFontSize.line / 18) + 'px';
+      lineLegend.querySelectorAll('.legend-dot').forEach(el=>{ el.style.width = dotSize; el.style.height = dotSize; });
+    }
+    /* .line-chart-wrap's live 3rem top padding reserves space so the chart
+       clears the absolutely-positioned metric-selector dropdown pinned above
+       it on screen — that dropdown (.line-controls) is stripped from the
+       export, so the reserved space is dead air between the header divider
+       and the chart. Shrink it to match the export's tighter look. */
+    if(activeTab === 'line'){
+      const lineWrapClone = panelClone.querySelector('.line-chart-wrap');
+      if(lineWrapClone) lineWrapClone.style.paddingTop = '0.6rem';
+    }
+    const barLegend = panelClone.querySelector('#bar-legend');
+    if(barLegend) barLegend.style.fontSize = EXPORT_STYLE.legendFontSize.bar + 'px';
+  }
+
+  const footer = document.createElement('div');
+  footer.style.cssText = `padding:${EXPORT_STYLE.footerPadding};font-size:${EXPORT_STYLE.footerFontSize}px;line-height:1.5;border-top:1px solid #ddd6c8;`;
+  footer.innerHTML = `<strong>Data source:</strong> Kiel Institute for the World Economy – ${RELEASE_LABEL}`;
+
+  card.appendChild(header);
+  card.appendChild(panelWrap);
+  card.appendChild(footer);
+  document.body.appendChild(card);
+
+  /* For table, panelClone was given height:auto so it grows to fit all
+     content (not just what fit on screen); now that it's attached and laid
+     out, measure its real height and resize panelWrap to match (scaled).
+     Bar's panelWrap height is instead finalized further down, after the
+     bar-specific crop/gap/legend adjustments below have all landed, since
+     those change the clone's content height. */
+  if(activeTab === 'table'){
+    const cloneRect = panelClone.getBoundingClientRect();
+    panelWrap.style.height = Math.round(cloneRect.height) + 'px';
+  }
+
+  try{
+    await replaceSvgsWithImages(panelWrap, panel, svgRasterScale, svgCssScale);
+    replaceCanvasesWithImages(panelWrap, panel);
+
+    /* #bar-svg bakes in TOP_SPACING_PX/BOTTOM_SPACING_PX around the bars,
+       sized for the live scrollable viewport (see their definition above
+       renderBar()) — not what a static export wants. Crop both off the
+       rasterized bar image entirely, then re-add independent, configurable
+       gaps (EXPORT_STYLE.barChartTopGap/barChartBottomGap) as plain CSS
+       margins, and measure panelWrap's final height fresh once the image,
+       its gaps, and the (now in-flow, see above) legend have all settled —
+       rather than reasoning about the height delta incrementally. */
+    if(activeTab === 'bar'){
+      const barImg = panelWrap.querySelector('#bar-svg');
+      if(barImg){
+        await new Promise(res=>{ if(barImg.complete) res(); else barImg.onload = res; });
+        const natW = barImg.naturalWidth, natH = barImg.naturalHeight;
+        const cssH = parseFloat(barImg.style.height) || natH;
+        const pxPerCssPx = natH / cssH;
+        const cropTop = Math.round(TOP_SPACING_PX * pxPerCssPx);
+        const cropBottom = Math.round(BOTTOM_SPACING_PX * pxPerCssPx);
+        const keptNatH = natH - cropTop - cropBottom;
+        if(keptNatH > 0 && (cropTop > 0 || cropBottom > 0)){
+          const cropCanvas = document.createElement('canvas');
+          cropCanvas.width = natW; cropCanvas.height = keptNatH;
+          cropCanvas.getContext('2d').drawImage(barImg, 0, cropTop, natW, keptNatH, 0, 0, natW, keptNatH);
+          await new Promise(res=>{
+            barImg.onload = res;
+            barImg.src = cropCanvas.toDataURL('image/png');
+          });
+          barImg.style.height = (cssH - TOP_SPACING_PX - BOTTOM_SPACING_PX) + 'px';
+        }
+        barImg.style.display = 'block';
+        barImg.style.marginTop = EXPORT_STYLE.barChartTopGap + 'px';
+        /* If the legend row is showing, it supplies its own bottom margin
+           (barChartBottomGap) below itself; otherwise the bar image is the
+           last thing in the chart box, so it needs that margin directly. */
+        barImg.style.marginBottom = panelClone.dataset.barLegendVisible ? '0' : EXPORT_STYLE.barChartBottomGap + 'px';
+      }
+      const cloneRect = panelClone.getBoundingClientRect();
+      panelWrap.style.height = Math.round(cloneRect.height) + 'px';
+    }
+
+    /* The line chart's wrap height was sized off the live panel, which
+       includes the .line-controls row that gets stripped from the clone —
+       that left dead cream space below the chart. Now that the chart SVG
+       has been replaced with its correctly-sized raster image and the
+       legend has been re-laid-out at export font size/width (so it wraps
+       to however many rows this many selected countries actually need),
+       shrink-wrap panelWrap to the clone's real content height so the
+       chart+legend fill the card instead of floating in extra space. */
+    if(activeTab === 'line'){
+      const cloneRect = panelClone.getBoundingClientRect();
+      panelWrap.style.height = Math.round(cloneRect.height) + 'px';
+    }
+
+    const canvas = await html2canvas(card, {backgroundColor:'#f6f1e7', scale:EXPORT_STYLE.pixelRatio, useCORS:true});
+    await new Promise((resolve,reject)=>{
+      canvas.toBlob(async blob=>{
+        if(!blob){ reject(new Error('toBlob failed')); return; }
+        try{
+          await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+          resolve();
+        }catch(err){ reject(err); }
+      }, 'image/png');
+    });
+    toast('Chart image copied!');
+  }catch(err){
+    toast('Could not copy image');
+  }finally{
+    document.body.removeChild(card);
+  }
+}
+
+document.getElementById('opt-image').addEventListener('click',()=>{
+  shareDrop.classList.remove('open');
+  copyChartAsImage();
+});
+
+document.getElementById('fullscreen-btn').addEventListener('click',()=>{
+  const el=document.getElementById('explorer-wrap');
+  if(!document.fullscreenElement) el.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen();
+});
+/* "f" toggles fullscreen while the pointer is over the data viewer, or it
+   (or something inside it, e.g. a button) has focus from a prior click. */
+document.addEventListener('keydown', e => {
+  if(e.key.toLowerCase()!=='f' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const active=document.activeElement;
+  const tag=active && active.tagName;
+  if(tag==='INPUT' || tag==='TEXTAREA' || (active && active.isContentEditable)) return;
+  const wrap=document.getElementById('explorer-wrap');
+  const isHovering=wrap.matches(':hover');
+  const isFocused=wrap.contains(active);
+  if(!isHovering && !isFocused) return;
+  e.preventDefault();
+  if(!document.fullscreenElement) wrap.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen();
+});
+document.addEventListener('fullscreenchange',()=>{
+  const isFs=!!document.fullscreenElement;
+  document.getElementById('fs-expand-icon').style.display=isFs?'none':'';
+  document.getElementById('fs-compress-icon').style.display=isFs?'':'none';
+  document.getElementById('fullscreen-btn').title=isFs?'Exit fullscreen':'Fullscreen';
+  if(mapViewMode==='globe') requestAnimationFrame(buildGlobe);
+  if(mapViewMode==='map' && mapZoomBehaviour && mapZoomSvgEl){
+    const z = isFs ? MAP_FULLSCREEN_ZOOM : MAP_INITIAL_ZOOM;
+    const t = d3.zoomIdentity.translate(z.x, z.y).scale(z.k);
+    d3.select(mapZoomSvgEl).call(mapZoomBehaviour.transform, t);
+  }
+  /* Re-render the line chart so LINE_CHART_STYLE.normal/fullscreen values
+     (axis + unit-label font sizes, left/right padding, legend size) take
+     effect. Defer to after the fullscreen CSS (zoom + base font-size on
+     .explorer-wrap) has actually been applied to the layout — otherwise
+     renderLine() measures the wrapper at its pre-transition size and the
+     labels come out wrong when entering fullscreen straight from line view.
+     Two rAFs: one frame for the browser to commit the fullscreen styles,
+     the next to render/measure against the settled layout. */
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    if(document.getElementById('panel-line')?.classList.contains('active')) renderLine();
+    /* The timeline is shared across tabs, so re-size its labels regardless of
+       which tab is active. */
+    applyTimelineLabelSize();
+  }));
+});
+
+/* ════════════════════════════════════
+   DOWNLOAD MODAL
+════════════════════════════════════ */
+(function(){
+  const overlay = document.getElementById('dl-overlay');
+  const modal   = document.getElementById('dl-modal');
+
+  function openDlModal(){
+    const start = YMS[mapYmStartIdx], end = YMS[mapYmIdx];
+    const countCount = selected.size || COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c)).length;
+    document.getElementById('dl-filtered-sub').textContent =
+      `All Aid Types · ${ymLabel(start.y,start.m)}–${ymLabel(end.y,end.m)} · ${countCount} countr${countCount===1?'y':'ies'}`;
+    overlay.classList.add('open');
+    modal.classList.add('open');
+  }
+
+  function closeDlModal(){
+    overlay.classList.remove('open');
+    modal.classList.remove('open');
+  }
+
+  document.getElementById('dl-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    if (modal.classList.contains('open')) closeDlModal();
+    else openDlModal();
+  });
+
+  overlay.addEventListener('click', closeDlModal);
+  document.getElementById('dl-close').addEventListener('click', closeDlModal);
+
+  /* Rasterize the Kiel Institute SVG logo to a PNG data URL via canvas,
+     since ExcelJS can only embed PNG/JPEG images, not SVG. */
+  let kielLogoPng = null;
+  async function getKielLogoPng(){
+    if (kielLogoPng) return kielLogoPng;
+    const svgText = await fetch('../../assets/Kiel Institut Logo.svg').then(r => r.text());
+    const svgBlob = new Blob([svgText], {type:'image/svg+xml'});
+    const svgUrl  = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve; img.onerror = reject; img.src = svgUrl;
+    });
+    const scale = 3;
+    const canvas = document.createElement('canvas');
+    canvas.width  = img.naturalWidth  * scale;
+    canvas.height = img.naturalHeight * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(svgUrl);
+    kielLogoPng = {
+      dataUrl: canvas.toDataURL('image/png'),
+      width: img.naturalWidth, height: img.naturalHeight
+    };
+    return kielLogoPng;
+  }
+
+  /* Builds one formatted sheet (title, subtitle, note, source, logo + data table)
+     inside an existing workbook. Shared by both download options below. */
+  async function addAidSheet(wb, { sheetName, title, subtitle, note, rows, gdpShareByCountry }){
+    const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: false }] });
+
+    const leftPad = 2; // blank columns reserved to the left of the table
+    const topPad  = 2; // blank rows reserved above the title
+    const dataColCount = 8; // Country, Date, Total, Financial, Military, Humanitarian, Commitments, % of 2021 GDP
+    const firstCol = leftPad + 1;
+    const lastCol  = leftPad + dataColCount;
+    const logoCol  = lastCol + 1; // dedicated blank column so the logo never overlaps title text
+
+    for (let i = 0; i < topPad; i++) ws.addRow([]);
+
+    ws.mergeCells(topPad + 1, firstCol, topPad + 1, lastCol);
+    ws.mergeCells(topPad + 2, firstCol, topPad + 2, lastCol);
+    ws.mergeCells(topPad + 3, firstCol, topPad + 3, lastCol);
+    ws.mergeCells(topPad + 4, firstCol, topPad + 4, lastCol);
+    ws.mergeCells(topPad + 5, firstCol, topPad + 5, lastCol);
+
+    const titleCell = ws.getCell(topPad + 1, firstCol);
+    titleCell.value = title;
+    titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFF6B00' } };
+    ws.getRow(topPad + 1).height = 26;
+
+    const releaseCell = ws.getCell(topPad + 2, firstCol);
+    releaseCell.value = RELEASE_LABEL;
+    releaseCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF555555' } };
+    ws.getRow(topPad + 2).height = 15;
+
+    const subtitleCell = ws.getCell(topPad + 3, firstCol);
+    subtitleCell.value = subtitle;
+    subtitleCell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF333333' } };
+    ws.getRow(topPad + 3).height = 18;
+
+    const noteCell = ws.getCell(topPad + 4, firstCol);
+    noteCell.value = note;
+    noteCell.font = { name: 'Calibri', size: 8.5, italic: true, color: { argb: 'FF888888' } };
+    ws.getRow(topPad + 4).height = 14;
+
+    const sourceCell = ws.getCell(topPad + 5, firstCol);
+    sourceCell.value = 'Data Source: Kiel Institute for the World Economy — Ukraine Support Tracker (kiel-institute.de/ukraine)';
+    sourceCell.font = { name: 'Calibri', size: 8.5, italic: true, color: { argb: 'FF888888' } };
+    ws.getRow(topPad + 5).height = 14;
+    ws.addRow([]);
+
+    const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Country', 'Date', 'Total aid (€ bn)', 'Financial aid (€ bn)', 'Military aid (€ bn)', 'Humanitarian aid (€ bn)', 'Commitments (€ bn)', '% of 2021 GDP']);
+    headerRow.eachCell({ includeEmpty: false }, cell => {
+      cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3A6DC5' } };
+      cell.alignment = { vertical: 'middle' };
+    });
+    headerRow.height = 18;
+
+    rows.forEach(r => {
+      const dataRow = ws.addRow([...Array(leftPad).fill(null), r.c, new Date(r.y, r.m - 1, 1), r.tot, r.fin, r.mil, r.hum, r.commit || 0, gdpShareByCountry[r.c] || 0]);
+      dataRow.getCell(firstCol + 1).numFmt = 'mmm yyyy';
+      [2,3,4,5,6].forEach(i => dataRow.getCell(firstCol + 1 + i).numFmt = '0.0000');
+      dataRow.getCell(firstCol + 7).numFmt = '0.0000%';
+      dataRow.font = { name: 'Calibri', size: 10 };
+    });
+
+    ws.columns = [
+      ...Array(leftPad).fill({ width: 3 }),
+      { width: 26 }, { width: 12 }, { width: 16 }, { width: 18 }, { width: 16 }, { width: 18 }, { width: 16 }, { width: 14 }
+    ];
+
+    try {
+      const logo = await getKielLogoPng();
+      const imgId = wb.addImage({ base64: logo.dataUrl, extension: 'png' });
+      const logoDisplayHeight = 64;
+      const logoDisplayWidth  = logoDisplayHeight * (logo.width / logo.height);
+      ws.addImage(imgId, {
+        tl: { col: logoCol - 1 + 0.05, row: topPad + 0.05 },
+        ext: { width: logoDisplayWidth, height: logoDisplayHeight },
+        editAs: 'absolute'
+      });
+    } catch (e) {
+      console.warn('Could not embed Kiel Institute logo in export:', e);
+    }
+  }
+
+  function gdpShareByCountryFor(rows){
+    const cumTotByCountry = {};
+    rows.forEach(r => { cumTotByCountry[r.c] = (cumTotByCountry[r.c] || 0) + r.tot; });
+    const gdpShareByCountry = {};
+    Object.keys(cumTotByCountry).forEach(c => {
+      const gdp = MONTHLY.find(r => r.c === c)?.gdp ?? 0;
+      gdpShareByCountry[c] = gdp > 0 ? cumTotByCountry[c] / gdp : 0;
+    });
+    return gdpShareByCountry;
+  }
+
+  async function downloadWorkbook(wb, filename){
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /* Option 1: all countries & aggregates, full time range — split into a
+     "Countries" sheet and (if any aggregates are present) an "Aggregates" sheet */
+  document.getElementById('dl-full').addEventListener('click', async () => {
+    const start = YMS[0], end = YMS[YMS.length - 1];
+    const rangeLabel = `${ymLabel(start.y,start.m)}–${ymLabel(end.y,end.m)}`;
+    const rows = MONTHLY.slice().sort((a,b) => a.c.localeCompare(b.c) || ymKey(a.y,a.m) - ymKey(b.y,b.m));
+    const countryRows    = rows.filter(r => !AGGREGATE_COUNTRIES.includes(r.c));
+    const aggregateRows  = rows.filter(r => AGGREGATE_COUNTRIES.includes(r.c));
+    const gdpShareByCountry = gdpShareByCountryFor(rows);
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Kiel Institute for the World Economy — Ukraine Support Tracker';
+    wb.created = new Date();
+
+    const countryCount = new Set(countryRows.map(r => r.c)).size;
+    await addAidSheet(wb, {
+      sheetName: 'Countries',
+      title: 'Ukraine Support Tracker — All Countries',
+      subtitle: `All Aid Types · ${rangeLabel} · ${countryCount} countr${countryCount===1?'y':'ies'}`,
+      note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
+      rows: countryRows,
+      gdpShareByCountry
+    });
+
+    if (aggregateRows.length > 0) {
+      const aggCount = new Set(aggregateRows.map(r => r.c)).size;
+      await addAidSheet(wb, {
+        sheetName: 'Aggregates',
+        title: 'Ukraine Support Tracker — All Aggregates',
+        subtitle: `All Aid Types · ${rangeLabel} · ${aggCount} aggregate${aggCount===1?'':'s'}`,
+        note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
+        rows: aggregateRows,
+        gdpShareByCountry
+      });
+    }
+
+    await downloadWorkbook(wb, 'ust_all_countries.xlsx');
+    closeDlModal();
+  });
+
+  /* Option 2: current metric, selected countries/aggregates, selected time range —
+     split into a "Countries" sheet and (if any aggregates are selected) an "Aggregates" sheet */
+  document.getElementById('dl-filtered').addEventListener('click', async () => {
+    const start = YMS[mapYmStartIdx], end = YMS[mapYmIdx];
+    const startKey = ymKey(start.y, start.m);
+    const endKey   = ymKey(end.y,   end.m);
+    const rangeLabel = `${ymLabel(start.y,start.m)}–${ymLabel(end.y,end.m)}`;
+    const NON_EU_COUNTRIES = COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c));
+    const selSet = selected.size > 0 ? selected : new Set(NON_EU_COUNTRIES);
+    const rows = MONTHLY.filter(r =>
+      selSet.has(r.c) &&
+      ymKey(r.y,r.m) >= startKey &&
+      ymKey(r.y,r.m) <= endKey
+    ).sort((a,b) => a.c.localeCompare(b.c) || ymKey(a.y,a.m) - ymKey(b.y,b.m));
+    const countryRows   = rows.filter(r => !AGGREGATE_COUNTRIES.includes(r.c));
+    const aggregateRows = rows.filter(r => AGGREGATE_COUNTRIES.includes(r.c));
+    const gdpShareByCountry = gdpShareByCountryFor(rows);
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Kiel Institute for the World Economy — Ukraine Support Tracker';
+    wb.created = new Date();
+
+    const countryCount = new Set(countryRows.map(r => r.c)).size;
+    await addAidSheet(wb, {
+      sheetName: 'Countries',
+      title: 'Ukraine Support Tracker — Selected Countries',
+      subtitle: `All Aid Types · ${rangeLabel} · ${countryCount} countr${countryCount===1?'y':'ies'}`,
+      note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
+      rows: countryRows,
+      gdpShareByCountry
+    });
+
+    if (aggregateRows.length > 0) {
+      const aggCount = new Set(aggregateRows.map(r => r.c)).size;
+      await addAidSheet(wb, {
+        sheetName: 'Aggregates',
+        title: 'Ukraine Support Tracker — Selected Aggregates',
+        subtitle: `All Aid Types · ${rangeLabel} · ${aggCount} aggregate${aggCount===1?'':'s'}`,
+        note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
+        rows: aggregateRows,
+        gdpShareByCountry
+      });
+    }
+
+    await downloadWorkbook(wb, 'ust_selected_countries.xlsx');
+    closeDlModal();
+  });
+})();
+
+/* ════════════════════════════════════
+   INFO MODAL
+════════════════════════════════════ */
+(function(){
+  const overlay = document.getElementById('info-overlay');
+  const modal   = document.getElementById('info-modal');
+  const titleEl = document.getElementById('info-eyebrow');
+  const bodyEl  = document.getElementById('info-body');
+
+  const VIEW_COPY = {
+    map: { label: 'Map view' },
+    line: { label: 'Line chart' },
+    bar: { label: 'Bar chart' },
+    table: { label: 'Data table' }
+  };
+
+  const METRIC_COPY = {
+    total: {
+      label: 'Total allocations',
+      desc: `<p><strong>Total allocations</strong> includes bilateral allocations to Ukraine. Does not include private donations, support for refugees outside of Ukraine, and aid by international organizations. Financial allocations that are made explicitly for military and weapons purchases are counted as military aid.</p>`
+    },
+    pct: {
+      label: 'Share of GDP',
+      desc: `<p><strong>Share of GDP</strong> includes bilateral allocations to Ukraine, as a percentage of 2021 GDP. Does not include private donations, support for refugees outside of Ukraine, and aid by international organizations. Financial allocations that are made explicitly for military and weapons purchases are counted as military aid.</p>`
+    },
+    fin: {
+      label: 'Financial aid',
+      desc: `<p><strong>Financial aid</strong> includes bilateral allocations to Ukraine. Does not include private donations, support for refugees outside of Ukraine, and aid by international organizations. Financial allocations that are made explicitly for military and weapons purchases are counted as military aid.</p>`
+    },
+    mil: {
+      label: 'Military aid',
+      desc: `<p><strong>Military aid</strong> includes bilateral allocations to Ukraine. Does not include private donations, support for refugees outside of Ukraine, and aid by international organizations. Financial allocations that are made explicitly for military and weapons purchases are counted as military aid.</p>`
+    },
+    hum: {
+      label: 'Humanitarian aid',
+      desc: `<p><strong>Humanitarian aid</strong> includes bilateral allocations to Ukraine. Does not include private donations, support for refugees outside of Ukraine, and aid by international organizations. Financial allocations that are made explicitly for military and weapons purchases are counted as military aid.</p>`
+    },
+    alloc_commit: {
+      label: 'Allocations + Commitments',
+      desc: `<p><strong>Allocations</strong> are aid that has concretely been earmarked to a specific project, sector or recipient. <strong>Commitments</strong> are pledges of future aid that have not yet been allocated. Both are bilateral figures for Ukraine and do not include private donations, support for refugees outside of Ukraine, or aid by international organizations.</p>`
+    }
+  };
+
+  function openInfoModal(){
+    const view = VIEW_COPY[activeTab] || VIEW_COPY.map;
+    const metricKey = activeTab === 'table' ? null : sharedMetric;
+    const metric = metricKey ? (METRIC_COPY[metricKey] || METRIC_COPY.total) : null;
+
+    const start = YMS[mapYmStartIdx], end = YMS[mapYmIdx];
+    const rangeLabel = `${ymLabel(start.y,start.m)}–${ymLabel(end.y,end.m)}`;
+    const NON_EU_COUNTRIES = COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c));
+    const selSet = selected.size > 0 ? selected : new Set(NON_EU_COUNTRIES);
+    const aggCount = [...selSet].filter(c => AGGREGATE_COUNTRIES.includes(c)).length;
+    const countryCount = selSet.size - aggCount;
+    const selectionParts = [];
+    if (countryCount > 0) selectionParts.push(`${countryCount} countr${countryCount===1?'y':'ies'}`);
+    if (aggCount > 0) selectionParts.push(`${aggCount} aggregate${aggCount===1?'':'s'}`);
+    const selectionLabel = `${selectionParts.join(', ')} selected`;
+    const hasContinental = [...selSet].some(c => c.includes('Continental Europe'));
+    const continentalExtra = CONTINENTAL_EUROPE_COUNTRIES.filter(c => !EU27_COUNTRIES.includes(c));
+    const hasEuInstitutions = [...selSet].some(c => c.includes('EU Institutions'));
+
+    titleEl.textContent = 'What this view shows';
+
+    let html = '';
+    html += `<div class="info-tag-row">
+      <span class="info-tag">${view.label}</span>
+      ${metric ? `<span class="info-tag">${metric.label}</span>` : ''}
+      <span class="info-tag">${rangeLabel}</span>
+      <span class="info-tag">${selectionLabel}</span>
+    </div>`;
+
+    if (metric) html += metric.desc;
+
+    if (hasContinental) html += `<p><strong>Continental Europe</strong> = EU Members + ${continentalExtra.join(', ')}.</p>`;
+
+    if (hasEuInstitutions) html += `<p><strong>EU Institutions</strong> = Commission and Council, MFA, and EIB funds.</p>`;
+
+    html += `<div class="info-source"><strong>Data source:</strong> Kiel Institute for the World Economy – ${RELEASE_LABEL}</div>`;
+
+    bodyEl.innerHTML = html;
+    overlay.classList.add('open');
+    modal.classList.add('open');
+  }
+
+  function closeInfoModal(){
+    overlay.classList.remove('open');
+    modal.classList.remove('open');
+  }
+
+  document.getElementById('info-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    if (modal.classList.contains('open')) closeInfoModal();
+    else openInfoModal();
+  });
+  overlay.addEventListener('click', closeInfoModal);
+  document.getElementById('info-close').addEventListener('click', closeInfoModal);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) closeInfoModal();
+  });
+})();
+
+/* ════════════════════════════════════
+   INIT
+════════════════════════════════════ */
+renderLeftList();
+renderActiveChart();
+
+/* Apply tooltip box sizing from TT_LAYOUT so width/padding stay in one place */
+(function applyTooltipBoxLayout(){
+  const tt = document.getElementById('map-tooltip');
+  if (!tt) return;
+  tt.style.width = TT_LAYOUT.box.width + 'px';
+  tt.style.padding = TT_LAYOUT.box.padding;
+})();
+
+/* Sync chart-header height to left panel sections so the tab bar
+   aligns exactly with the country list */
+function syncHeaderHeight() {
+  const ls = document.querySelector('.left-sort');
+  const tb = document.querySelector('.tab-bar');
+  const ch = document.querySelector('.chart-header');
+  if (!ls || !tb || !ch) return;
+  /* Reset both so we measure natural sizes */
+  ch.style.minHeight = '';
+  tb.style.minHeight = '';
+  /* Step 1: make tab-bar at least as tall as sort row */
+  tb.style.minHeight = ls.offsetHeight + 'px';
+  /* Step 2: adjust chart-header so tab-bar bottom == sort row bottom */
+  const diff = ls.getBoundingClientRect().bottom - tb.getBoundingClientRect().bottom;
+  if (Math.abs(diff) > 0.5) {
+    ch.style.minHeight = Math.max(0, ch.offsetHeight + diff) + 'px';
+  }
+}
+requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(syncHeaderHeight)));
+document.fonts.ready.then(syncHeaderHeight);
+window.addEventListener('resize', syncHeaderHeight);
+} // end main()
+main();
+
+/* ════════════════════════════════════
+   RESPONSIVE SCALE (resize like an image)
+   The explorer's internal layout is 1155px wide and never reflows
+   horizontally. Scale the whole box up or down uniformly to fill the
+   available width (and resize the reserved space to match) instead
+   of letting anything inside wrap or resize. Fullscreen mode has its
+   own dedicated sizing (CSS zoom) and is left untouched here.
+
+   EMBEDDED (en_index.html iframe): the box also keeps its native 730px
+   height, so the card's proportions are fixed at 1155:730 and the
+   scaled height is reported back so the iframe can match it. Nothing
+   here changed.
+
+   STANDALONE (own window/tab — html.fluid): the height is no longer
+   tied to the width. The wrap is given whatever unscaled height maps
+   to exactly the window height at the current width-derived scale, so
+   the card fills the window in both axes like every other chart page,
+   and its vertical layout reflows to suit. If the window is so short
+   that the layout would be crushed, the scale falls back to fitting by
+   height (and the card is centred horizontally) rather than clipping.
+════════════════════════════════════ */
+(function setupResponsiveScale(){
+  const EXPLORER_W = 1155, EXPLORER_H = 730;
+  /* Smallest unscaled height the internal layout stays usable at (header +
+     controls + a real chart area + timeline + footer). */
+  const MIN_UNSCALED_H = 520;
+  const fluid = document.documentElement.classList.contains('fluid');
+  const container = document.getElementById('explorer-scale-container');
+  const wrap = document.getElementById('explorer-wrap');
+  if(!container || !wrap) return;
+
+  /* Defined inside main() (see __ustRelayoutActivePanel there); may not exist
+     yet on the very first synchronous call, which is fine — main() renders the
+     initial panel itself. */
+  function rerenderActivePanel(){
+    if(typeof window.__ustRelayoutActivePanel === 'function') window.__ustRelayoutActivePanel();
+  }
+
+  let lastH = null;
+  function applyScale(){
+    if(document.fullscreenElement === wrap){
+      wrap.style.transform = '';
+      wrap.style.height = '';
+      container.style.height = '';
+      lastH = null;
+      return;
+    }
+    const availW = container.clientWidth;
+
+    if(fluid){
+      const availH = container.clientHeight;
+      let scale = availW / EXPLORER_W;
+      let unscaledH = availH / scale;
+      let offsetX = 0;
+      if(unscaledH < MIN_UNSCALED_H){
+        /* Very short window: fit by height instead and centre horizontally. */
+        unscaledH = MIN_UNSCALED_H;
+        scale = availH / MIN_UNSCALED_H;
+        offsetX = Math.max(0, (availW - EXPLORER_W * scale) / 2);
+      }
+      wrap.style.height = unscaledH + 'px';
+      wrap.style.transform = `translateX(${offsetX}px) scale(${scale})`;
+      container.style.height = '';
+      const h = Math.round(unscaledH);
+      if(h !== lastH){ lastH = h; rerenderActivePanel(); }
+      return;
+    }
+
+    const scale = availW / EXPLORER_W;
+    wrap.style.height = EXPLORER_H + 'px';
+    wrap.style.transform = `scale(${scale})`;
+    const h = Math.round(EXPLORER_H * scale);
+    container.style.height = h + 'px';
+    /* Let a parent page embedding us via <iframe> resize the iframe to match,
+       so scaling down never leaves a blank gap or clips content. */
+    if(window.parent !== window){
+      window.parent.postMessage({type:'ust-explorer-height', height:h}, '*');
+    }
+  }
+
+  applyScale();
+  window.addEventListener('resize', applyScale);
+  document.addEventListener('fullscreenchange', applyScale);
+})();
+</script>
+</body>
+</html>
