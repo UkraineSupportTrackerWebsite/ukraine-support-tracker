@@ -2,7 +2,7 @@
    USTData — shared CSV loader for the Ukraine Support Tracker widgets.
 
    Every chart page (data_explorer, total_allocations, allocations_by_region,
-   weapons_by_country, procurement_trends) includes this file and calls
+   weapons_by_donor, procurement_trends) includes this file and calls
    USTData.fetchCSV('<name>.csv') / USTData.fetchReleaseLabel() to load its
    data at runtime instead of embedding it in the page. That means: to
    publish a new release, drop updated CSVs (produced by the R export
@@ -17,13 +17,15 @@
 ════════════════════════════════════════════════════════════════════ */
 window.USTData = (function () {
 
-  // Resolves to the repo's own "data/" folder, one level up from
-  // HTML/*.html (works both on GitHub Pages and locally, since fetch()
-  // resolves relative to the HTML file's own URL, not the parent page
-  // embedding it in an iframe). To publish a new release: replace the
+  // Resolves to the repo's own "data/" folder, two levels up from
+  // HTML/<lang>/*.html (works both on GitHub Pages and locally, since
+  // fetch() resolves relative to the HTML file's own URL, not the parent
+  // page embedding it in an iframe). Both language folders — HTML/english
+  // and HTML/german — share this one data folder, so a new release only
+  // has to be dropped in once. To publish a new release: replace the
   // CSVs in data/ produced by extract_ust_data.R and push — no HTML
   // changes needed.
-  const DATA_BASE_URL = '../data/';
+  const DATA_BASE_URL = '../../data/';
 
   function parseCSV(text) {
     const rows = [];
