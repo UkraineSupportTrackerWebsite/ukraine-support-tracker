@@ -1,0 +1,196 @@
+/* ════════════════════════════════════════════════════════════════════
+   military_allocations_by_donor.css — rules specific to this widget.
+
+   Loads after chart-base.css and may override it. Shared by the English and
+   German copies of the page, so edit once and both languages follow.
+════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --font: Arial, sans-serif;
+  --font-serif: Arial, sans-serif;
+  --black: #1a1a1a;
+  --mid: #6b6b6b;
+  --border: #d0d0d0;
+}
+html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
+/* Fluid: the card fills whatever box the embed gives it, in BOTH axes, so
+   no leftover margin can ever appear around it. */
+html, body { height: 100%; }
+.explorer-scale-container {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
+  background: #f6f1e7;
+}
+.explorer-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  border: 1px solid #ddd6c8;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f6f1e7;
+  /* No drop shadow here: the card fills the whole iframe viewport, so the
+     shadow had nowhere to fall and only smudged grey into the rounded
+     corner cut-outs. The shadow now lives on the <iframe> in en_index.html. */
+  position: relative;
+}
+.chart-header {
+  padding: 0.9rem 1.1rem 0.7rem;
+  padding-right: 185px;
+  border-bottom: 1px solid #ddd6c8;
+  position: relative;
+  flex-shrink: 0;
+  background: #f6f1e7;
+  min-height: 76.5px;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.chart-title {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #174abb;
+  margin-bottom: 0rem;
+}
+.kiel-logo {
+  position: absolute;
+  top: 50%; right: 17px;
+  transform: translateY(-50%);
+  line-height: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+}
+.kiel-logo img { height: 40px; width: auto; display: block; }
+/* ── CONTROLS BAR ────────────────────────────────────────────
+   Identical metrics to the region / category selectors (0.98rem button at
+   line-height 1.15 inside 0.55rem padding = 46.06px tall), so this card
+   stacks exactly like the two above it and the plots line up across the
+   grid. line-height is pinned here rather than left to the UA sheet, which
+   resets buttons to `normal` and would tie the height to Arial's metrics.
+───────────────────────────────────────────────────────────── */
+.chart-controls {
+  flex-shrink: 0; padding: 0.55rem;
+  background: #f6f2e8;
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.72rem; color: var(--mid);
+}
+/* custom dropdown (shared visual language with data explorer) */
+.sort-custom { position: relative; flex: none; }
+.sort-custom-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
+  font-family: var(--font); font-size: 0.98rem; line-height: 1.15;
+  border: 1px solid var(--border); border-radius: 3px;
+  padding: 0.46rem 0.86rem;
+  background: #f6f1e7; color: var(--black);
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.1s;
+}
+.sort-custom-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 3px); left: 0;
+  min-width: 230px;
+  background: #f6f1e7;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 100;
+  overflow: hidden;
+}
+.sort-custom-option {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.28rem 0.7rem;
+  font-family: var(--font); font-size: 0.82rem;
+  color: var(--black); cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.sort-custom-option input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
+  border: 1.5px solid #b0a898; border-radius: 2px;
+  background: #f6f1e7;
+  transition: border-color 0.1s;
+}
+.sort-custom-option input[type="checkbox"]:checked {
+  border-color: #ff6b00;
+  background: #ff6b00;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13'%3E%3Cpath d='M2.5 6.5l3 3 5-5' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+}
+/* ── BAR CHART BODY ──────────────────────────────────────────
+   Two SVGs, not one: the value axis is a fixed strip at the top and the
+   bars live in a scroller underneath. With every option selected the
+   ranking is 46 bars long — far more than fits at a legible row height —
+   so the plot grows past the card and scrolls, while the axis it is read
+   against stays put. When the selection does fit, the scroller never
+   scrolls and the card looks exactly like a static chart.
+─────────────────────────────────────────────────────────────── */
+.bar-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding-left: 0.4rem;
+}
+#bar-svg { width: 100%; display: block; overflow: visible; }
+/* ── breakdown popup (follows cursor over the bars, until pinned) ── */
+#bar-hover-popup {
+  display: none;
+  position: absolute;
+  z-index: 250;
+  background: #f6f1e7;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+  width: 215px;
+  padding: 0.55rem 0;
+  font-family: var(--font);
+  /* While trailing the cursor the card must not eat pointer events, or a
+     fast sweep lands the cursor on the card and stalls the tracking. It
+     only becomes interactive once pinned. */
+  pointer-events: none;
+}
+.bar-popup-list {
+  max-height: 175px;
+  overflow-y: auto;
+  padding: 0 0.7rem;
+}
+.chart-footer {
+  flex-shrink: 0;
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 0.5rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  z-index: 20;
+}
+.footer-icons {
+  position: relative;
+  display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
+}
+.footer-icons::before {
+  content: '';
+  position: absolute;
+  top: -6px; bottom: -6px; right: -8px; left: -40px;
+  z-index: -1;
+  background: rgba(246,241,231,0.35);
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
+  mask-image: linear-gradient(to right, transparent, #000 32px);
+}
+.footer-icon-btn:hover { background: #ede8de; color: var(--black); }
+#info-close:hover { background: #ede8de; color: var(--black); }

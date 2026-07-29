@@ -4,361 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ukraine Support Tracker – Gesamtzuweisungen an die Ukraine, nach Region</title>
-  <style>
-    :root {
-      --font: Arial, sans-serif;
-      --font-serif: Arial, sans-serif;
-      --black: #1a1a1a;
-      --mid: #6b6b6b;
-      --border: #d0d0d0;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
-
-    /* Fluid: the card fills whatever box the embed gives it, in BOTH axes, so
-       no leftover margin can ever appear around it. */
-    html, body { height: 100%; }
-
-    .explorer-scale-container {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
-      background: #f6f1e7;
-    }
-
-    .explorer-wrap {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      height: 100%;
-      border: 1px solid #ddd6c8;
-      border-radius: 6px;
-      overflow: hidden;
-      background: #f6f1e7;
-      /* No drop shadow here: the card fills the whole iframe viewport, so the
-         shadow had nowhere to fall and only smudged grey into the rounded
-         corner cut-outs. The shadow now lives on the <iframe> in de_index.html. */
-      position: relative;
-    }
-
-    .chart-header {
-      padding: 0.9rem 1.1rem 0.7rem;
-      padding-right: 185px;
-      border-bottom: 1px solid #ddd6c8;
-      position: relative;
-      flex-shrink: 0;
-      background: #f6f1e7;
-      min-height: 76.5px;
-      box-sizing: border-box;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .chart-title {
-      font-family: var(--font-serif);
-      font-size: 1.5rem;
-      font-weight: 700;
-      line-height: 1.25;
-      color: #174abb;
-      margin-bottom: 0rem;
-    }
-    .kiel-logo {
-      position: absolute;
-      top: 50%; right: 17px;
-      transform: translateY(-50%);
-      line-height: 0;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-    }
-    .kiel-logo img { height: 40px; width: auto; display: block; }
-
-    /* ── CONTROLS BAR ────────────────────────────────────────────
-       Same markup, metrics and behaviour as the category selector in
-       de_total_allocations.html — the two cards sit next to each other, so the
-       bar's height (0.98rem button at line-height 1.15 inside 0.55rem padding
-       = 46.06px) is also what renderChart()'s pad.t is derived from. Keep the
-       two in sync; line-height is pinned here rather than left to the UA sheet,
-       which resets buttons to `normal` and would tie the height to Arial's
-       metrics.
-    ───────────────────────────────────────────────────────────── */
-    .chart-controls {
-      flex-shrink: 0; padding: 0.55rem;
-      background: #f6f2e8;
-      display: flex; align-items: center; gap: 0.5rem;
-      font-size: 0.72rem; color: var(--mid);
-    }
-
-    /* custom dropdown (shared visual language with data explorer) */
-    .sort-custom { position: relative; flex: none; }
-    .sort-custom-btn {
-      display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
-      font-family: var(--font); font-size: 0.98rem; line-height: 1.15;
-      border: 1px solid var(--border); border-radius: 3px;
-      padding: 0.46rem 0.86rem;
-      background: #f6f1e7; color: var(--black);
-      cursor: pointer; white-space: nowrap;
-      transition: background 0.1s;
-    }
-    .sort-custom-btn:hover { background: #ede8de; }
-    .sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
-    .sort-custom-dropdown {
-      display: none;
-      position: absolute;
-      top: calc(100% + 3px); left: 0;
-      min-width: 190px;
-      background: #f6f1e7;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      z-index: 100;
-      overflow: hidden;
-    }
-    .sort-custom-dropdown.open { display: block; }
-    .sort-custom-option {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.4rem 0.7rem;
-      font-family: var(--font); font-size: 0.82rem;
-      color: var(--black); cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.1s;
-    }
-    .sort-custom-option:hover { background: #ede8de; }
-    .sort-custom-option input[type="checkbox"] {
-      appearance: none; -webkit-appearance: none;
-      width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
-      border: 1.5px solid #b0a898; border-radius: 2px;
-      background: #f6f1e7;
-      transition: border-color 0.1s;
-    }
-    .sort-custom-option input[type="checkbox"]:checked {
-      border-color: #ff6b00;
-      background: #ff6b00;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13'%3E%3Cpath d='M2.5 6.5l3 3 5-5' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
-      background-size: 100% 100%;
-    }
-    .cat-swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-
-    /* ── BAR CHART BODY ──────────────────────────────────────────
-       The card fills the embed box, and renderChart() re-reads this element's
-       clientWidth/clientHeight on every resize (see setupResponsiveReflow),
-       so the chart is drawn at real pixel size rather than being zoomed. The
-       element itself is unpadded — renderChart()'s pad.b is what keeps the
-       x-axis labels clear of the footer icon cluster, which floats over the
-       bottom-right of the card.
-    ─────────────────────────────────────────────────────────────── */
-    .bar-body {
-      flex: 1;
-      padding: 0rem 0rem 0rem;
-      min-height: 0;
-      position: relative;
-    }
-    #bar-svg { width: 100%; height: 100%; display: block; overflow: visible; }
-
-    /* Bars carry brand region colors, two of which (orange 2.54:1, beige
-       1.60:1) sit under 3:1 against the cream surface — every bar is
-       therefore directly labeled, and all chart text stays in ink colors
-       rather than wearing its series color. */
-    .bar-rect { transition: opacity 0.12s; }
-    /* clickable: a click pins the popup so its list can be scrolled */
-    .bar-hit { cursor: pointer; }
-
-    /* ── contributor popup (follows cursor over the bars, until pinned) ── */
-    #bar-hover-popup {
-      display: none;
-      position: absolute;
-      z-index: 250;
-      background: #f6f1e7;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
-      width: 205px;
-      max-height: 190px;
-      padding: 0.55rem 0;
-      font-family: var(--font);
-      /* While trailing the cursor the card must not eat pointer events, or a
-         fast sweep lands the cursor on the card and stalls the tracking. It
-         only becomes interactive once pinned, which is what makes the list
-         reachable and scrollable. */
-      pointer-events: none;
-    }
-    #bar-hover-popup.show { display: block; }
-    #bar-hover-popup.pinned {
-      pointer-events: auto;
-      border-color: #b8b0a0;
-      box-shadow: 0 8px 28px rgba(0,0,0,0.24);
-    }
-    .bar-popup-header {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 0.15rem 0.5rem;
-      padding: 0 0.7rem 0.4rem;
-      border-bottom: 1px solid #eee6d8;
-      margin-bottom: 0.3rem;
-    }
-    .bar-popup-title {
-      font-size: 0.86rem;
-      font-weight: 700;
-      color: var(--black);
-      flex: 1 1 100px;
-    }
-    .bar-popup-total {
-      font-size: 0.86rem;
-      font-weight: 700;
-      color: #ff6b00;
-      flex-shrink: 0;
-      white-space: nowrap;
-    }
-    .bar-popup-list {
-      max-height: 135px;
-      overflow-y: auto;
-      padding: 0 0.7rem;
-    }
-    .bar-popup-list::-webkit-scrollbar { width: 5px; }
-    .bar-popup-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    .bar-popup-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 0.6rem;
-      padding: 0.18rem 0;
-      font-size: 0.78rem;
-    }
-    .bar-popup-country {
-      color: #333;
-      overflow-wrap: break-word;
-      min-width: 0;
-    }
-    .bar-popup-amount {
-      color: var(--black);
-      font-weight: 600;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .chart-footer {
-      flex-shrink: 0;
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      padding: 0.5rem 1.1rem;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 1rem;
-      z-index: 20;
-    }
-    .footer-icons {
-      position: relative;
-      display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
-    }
-    .footer-icons::before {
-      content: '';
-      position: absolute;
-      top: -6px; bottom: -6px; right: -8px; left: -40px;
-      z-index: -1;
-      background: rgba(246,241,231,0.35);
-      backdrop-filter: blur(1.5px);
-      -webkit-backdrop-filter: blur(1.5px);
-      -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
-      mask-image: linear-gradient(to right, transparent, #000 32px);
-    }
-    .footer-icon-btn {
-      width: 30px; height: 30px; border-radius: 3px;
-      border: 1px solid var(--border); background: #f6f1e7;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--mid); transition: background 0.1s;
-    }
-    .footer-icon-btn:hover { background: #ede8de; color: var(--black); }
-    .footer-icon-btn svg { width: 14px; height: 14px; }
-
-    /* share dropdown */
-    .share-wrap { position: relative; }
-    .share-dropdown {
-      display: none; position: absolute; right: 0; bottom: 110%;
-      background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
-    }
-    .share-dropdown.open { display: block; }
-    .share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
-    .share-option {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
-    }
-    .share-option:hover { background: #ede8de; }
-    .share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
-
-    /* copy toast */
-    #copy-toast {
-      position: fixed; bottom: 1.5rem; right: 1.5rem;
-      background: #222; color: #fff; font-size: 0.76rem;
-      padding: 0.45rem 1rem; border-radius: 4px;
-      opacity: 0; transition: opacity 0.25s; pointer-events: none;
-      z-index: 9999; font-family: var(--font);
-    }
-    #copy-toast.show { opacity: 1; }
-
-    /* ── Info Modal ── */
-    #info-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.32); z-index: 3000;
-    }
-    #info-overlay.open { display: block; }
-    #info-modal {
-      display: none; position: fixed; z-index: 3001;
-      left: 50%; top: 50%; transform: translate(-50%,-50%);
-      background: #f6f1e7; border: 1px solid #ddd6c8;
-      border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
-      width: 500px; max-width: calc(100vw - 3rem);
-      max-height: calc(100vh - 4rem);
-      font-family: var(--font);
-    }
-    #info-modal.open { display: block; }
-    #info-modal-inner { padding: 1rem; max-height: calc(100vh - 4rem); overflow-y: auto; }
-    #info-modal-inner::-webkit-scrollbar { width: 5px; }
-    #info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    #info-close {
-      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
-      width: 30px; height: 30px; border-radius: 50%;
-      border: 1px solid var(--border); background: #f6f1e7;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--mid); transition: background 0.1s;
-    }
-    #info-close:hover { background: #ede8de; color: var(--black); }
-    #info-close svg { width: 13px; height: 13px; }
-    #info-eyebrow {
-      font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: #ff6b00;
-      line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
-    }
-    #info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
-    #info-body p { margin: 0 0 0.7rem; }
-    #info-body p:last-child { margin-bottom: 0; }
-    #info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
-    #info-body .info-tag {
-      display: inline-block; font-size: 0.72rem; font-weight: 600;
-      color: #fff; background: #688fdc;
-      border: 1px solid #688fdc; border-radius: 3px;
-      padding: 0.2rem 0.55rem;
-    }
-    /* Region definitions: a slightly inset block so the two grouping
-       explanations read as asides rather than as more body copy. */
-    #info-body .info-def {
-      margin: 0 0 0.7rem;
-      padding-left: 0.7rem;
-      border-left: 2px solid #ddd6c8;
-    }
-    #info-body .info-def:last-of-type { margin-bottom: 0.7rem; }
-    #info-body .info-source {
-      margin-top: 1rem; padding-top: 0.7rem;
-      border-top: 1px solid #ddd6c8;
-      font-size: 0.75rem; color: var(--mid); line-height: 1.6;
-    }
-  </style>
+  <link rel="stylesheet" href="../../assets/css/chart-base.css" />
+  <link rel="stylesheet" href="../../assets/css/allocations_by_region.css" />
+  <link rel="stylesheet" href="../../assets/css/responsive.css" />
+  <script src="../../assets/chart-layout.js"></script>
+  <script src="../../assets/export-desktop.js"></script>
 </head>
 <body>
 
@@ -620,6 +270,157 @@ function wrapLabelAuto(name, maxWidth, measureFn){
   return lines;
 }
 
+/* Break opportunities inside one name: spaces, plus after any hyphen it
+   already contains — "EU-Institutionen" may split after its own hyphen
+   without one being invented. Returns pieces in order, each flagged with
+   whether joining it back on needs a space. */
+function labelPieces(name){
+  const out = [];
+  name.split(' ').forEach((word, wi) => {
+    const parts = word.split('-');
+    parts.forEach((part, i) => {
+      out.push({ text: i < parts.length - 1 ? part + '-' : part, space: i === 0 && wi > 0 });
+    });
+  });
+  return out;
+}
+
+/* ── syllable hyphenation ────────────────────────────────────────────
+   A word wider than the space available however it is wrapped
+   ("Kontinentaleuropa" between two neighbours on a 320px card) has to be
+   broken. Broken at the nearest character it reads as a typo, so the break
+   points are the word's syllable boundaries, following the ordinary
+   German rules:
+
+     · a syllable starts with as many of the consonants before it as can
+       legally open a German syllable, and no more — one consonant
+       between two vowels always moves on (Eu-ro-pa), a run splits before
+       the largest legal opening it ends with (Kon-ti-nen-tal, EU-Mit-glied-staa-ten);
+     · openings that spell a single sound stay whole (sch, ch, ck, st, pf);
+     · two vowels side by side are never split, so a hiatus stays intact
+       (Eu-ro-pa, never E-uropa);
+     · no break may leave fewer than 2 letters behind or fewer
+       than 2 ahead.
+
+   Not a full Duden hyphenation dictionary — that needs Liang's pattern
+   tables — but it breaks every region name in this chart where German
+   would, and gives anything added later a defensible break. */
+const HYPH_VOWELS = /[aeiouyäöüàáâãèéêìíîòóôõùúûAEIOUYÄÖÜ]/;
+/* Consonant runs that can open a syllable, longest first. */
+const HYPH_ONSETS = ['sch','str','spr','spl','chr','chl','pfl','pfr','bl','br','ch','ck','dr','fl','fr','gl','gn','gr','kl','kn','kr','pf','ph','pl','pr','ps','qu','sk','sl','sm','sn','sp','st','sw','th','tr','tw','zw'];
+const HYPH_MIN_LEAD = 2;   /* letters that must stay on the first line */
+const HYPH_MIN_TRAIL = 2; /* letters that must move to the next one */
+
+const isHyphVowel = ch => HYPH_VOWELS.test(ch);
+
+/* Offsets at which one word part may be broken by syllable, left to right. */
+function syllablePoints(word){
+  if (word.length < HYPH_MIN_LEAD + HYPH_MIN_TRAIL) return [];
+  const points = [];
+  let i = 0;
+  while (i < word.length) {
+    if (!isHyphVowel(word[i])) { i++; continue; }
+    /* the whole vowel group — a hiatus is not a break point */
+    while (i + 1 < word.length && isHyphVowel(word[i + 1])) i++;
+    /* the consonant run up to the next vowel */
+    let c = i + 1;
+    while (c < word.length && !isHyphVowel(word[c])) c++;
+    if (c >= word.length) break;            /* trailing consonants: nothing follows */
+    const run = word.slice(i + 1, c);
+    if (run.length) {
+      /* the largest legal opening this run ends with; failing that, just its
+         last consonant, which is always a legal opening on its own */
+      let take = 1;
+      for (let n = Math.min(3, run.length); n >= 2; n--) {
+        if (HYPH_ONSETS.indexOf(run.slice(-n).toLowerCase()) !== -1) { take = n; break; }
+      }
+      const at = c - take;
+      /* never right beside a hyphen the name already has, or the break
+         prints as "EU--Institutionen" */
+      const beside = word[at] === '-' || word[at - 1] === '-';
+      if (!beside && at >= HYPH_MIN_LEAD && word.length - at >= HYPH_MIN_TRAIL) points.push(at);
+    }
+    i = c;
+  }
+  return points;
+}
+
+/* Compound seams. German splits a compound at its seam BEFORE any syllable
+   rule applies: "Kontinental-europa", and within the parts "Kon-ti-nen-tal",
+   never "Kontinenta-leuropa" — the syllable rule run over the whole string
+   would take the l across the seam, because it cannot see the seam. Finding
+   them in general needs a dictionary; these are the elements the region names
+   in this chart are built from. */
+const HYPH_COMPOUNDS = ['europa','institutionen','institution','mitglied','staaten','länder','union','bank','welt'];
+function compoundPoints(word){
+  const lower = word.toLowerCase();
+  const pts = [];
+  HYPH_COMPOUNDS.forEach(part => {
+    for (let i = lower.indexOf(part, 1); i > 0; i = lower.indexOf(part, i + 1)) {
+      if (i >= HYPH_MIN_LEAD && word.length - i >= HYPH_MIN_TRAIL &&
+          word[i] !== '-' && word[i - 1] !== '-') pts.push(i);
+    }
+  });
+  return pts.sort((a, b) => a - b);
+}
+
+/* Every legal break in `word`: the compound seams themselves, plus the
+   syllable breaks inside each part between them. */
+function hyphenationPoints(word){
+  const seams = compoundPoints(word);
+  if (!seams.length) return syllablePoints(word);
+  const cuts = [0].concat(seams, [word.length]);
+  const points = seams.slice();
+  for (let k = 0; k < cuts.length - 1; k++) {
+    const from = cuts[k];
+    syllablePoints(word.slice(from, cuts[k + 1])).forEach(at => {
+      const abs = from + at;
+      if (abs >= HYPH_MIN_LEAD && word.length - abs >= HYPH_MIN_TRAIL) points.push(abs);
+    });
+  }
+  return points.filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b);
+}
+
+function hardBreakLabel(word, maxWidth, measureFn){
+  const out = [];
+  let rest = word;
+  while (measureFn(rest) > maxWidth && rest.length > 2) {
+    /* the longest legal break that still fits, hyphen included */
+    const points = hyphenationPoints(rest).filter(at => measureFn(rest.slice(0, at) + '-') <= maxWidth);
+    let i = points.length ? points[points.length - 1] : 0;
+    if (!i) {
+      /* No syllable boundary fits — a very narrow card. Cut at the widest
+         character that does, which at least keeps the names apart. */
+      i = rest.length - 1;
+      while (i > 1 && measureFn(rest.slice(0, i) + '-') > maxWidth) i--;
+      if (i <= 1) break;
+    }
+    out.push(rest.slice(0, i) + '-');
+    rest = rest.slice(i);
+  }
+  out.push(rest);
+  return out;
+}
+
+/* wrapLabelAuto, but able to break inside a word: greedy over labelPieces(),
+   then hyphenating whatever single piece is still too wide. Every line it
+   returns fits maxWidth unless the name is down to two characters, so the
+   caller's clearance test can be trusted rather than being defeated by one
+   unbreakable name. */
+function wrapLabelFit(name, maxWidth, measureFn){
+  if (measureFn(name) <= maxWidth) return [name];
+  const lines = [];
+  let cur = '';
+  labelPieces(name).forEach(p => {
+    const test = cur ? (p.space ? cur + ' ' + p.text : cur + p.text) : p.text;
+    if (cur && measureFn(test) > maxWidth) { lines.push(cur); cur = p.text; }
+    else cur = test;
+  });
+  if (cur) lines.push(cur);
+  return lines.flatMap(l => measureFn(l) > maxWidth
+    ? hardBreakLabel(l, maxWidth, measureFn) : [l]);
+}
+
 /* Collision is a property of a PAIR of neighbours: two centred labels one step
    apart touch when half of each, plus a gap, exceeds the step. Testing pairs
    instead of each label against the step matters now that the aggregates exist
@@ -696,7 +497,7 @@ function fitAxisLabels(nodes, step){
   let best = null;
   for (let rem = AXIS_LABEL_WRAP_REM; rem > AXIS_LABEL_MIN_REM; rem -= 0.02) {
     const measure = measureAt(rem);
-    const lines = labels.map(l => wrapLabelAuto(l, room, measure));
+    const lines = labels.map(l => wrapLabelFit(l, room, measure));
     if (lines.some(ls => ls.length > AXIS_LABEL_MAX_LINES)) continue;
     if (axisLabelsClear(lines.map(ls => Math.max(...ls.map(measure))), room)) {
       best = { rem, lines };
@@ -708,7 +509,7 @@ function fitAxisLabels(nodes, step){
      neighbour, which still reads better than overlapping text. */
   if (!best) {
     const measure = measureAt(AXIS_LABEL_MIN_REM);
-    best = { rem: AXIS_LABEL_MIN_REM, lines: labels.map(l => wrapLabelAuto(l, room, measure)) };
+    best = { rem: AXIS_LABEL_MIN_REM, lines: labels.map(l => wrapLabelFit(l, room, measure)) };
   }
   probe.remove();
 
@@ -736,6 +537,24 @@ function barPath(x, y, w, h, r){
        + ` L ${x + w} ${y + h} Z`;
 }
 
+/* ── bottom padding ──────────────────────────────────────────────────
+   PAD_B bottom-aligns our zero baseline with the line chart's x-axis when the
+   two cards sit side by side (see the note inside renderChart). Below
+   NARROW_CARD they no longer do — the landing page's grid is one column from
+   900px down — so all that padding buys is a dead strip between the region
+   names and the action buttons, which on a phone-height card is the most
+   conspicuous thing about it. There the padding is trimmed to what the names
+   actually occupy, and suggestHeight() takes the same pixels off the height
+   the card asks its embedder for, so the saving shows up as a shorter card
+   rather than as taller bars.
+
+   Matches responsive.css's 560px widget breakpoint. */
+const NARROW_CARD = 560;
+const PAD_B = 65.5;
+const LABEL_CLEARANCE = 4;    // breathing room under the deepest region name
+let narrowPadB = PAD_B;       // measured from the drawn names, once per width
+let remeasuringPadB = false;
+
 function renderChart(){
   /* The svg is width/height 100% of .bar-body's CONTENT box, but clientWidth /
      clientHeight report the padding box — measure the content box explicitly,
@@ -761,8 +580,11 @@ function renderChart(){
      (0.82rem x 1.5 line-height = 17.22px, plus 0.55rem padding-bottom =
      7.7px), its chart wrap's 0.4rem bottom padding (5.6px), and its own
      35px bottom plot padding — 65.5px in total. Keep these in sync if
-     de_total_allocations.html's legend or plot padding changes. */
-  const pad = { t: 20, r: 6, b: 65.5, l: 34 };
+     de_total_allocations.html's legend or plot padding changes. On a narrow
+     card that alignment has nothing to align to and b is trimmed instead —
+     see NARROW_CARD above. */
+  const narrow = W < NARROW_CARD;
+  const pad = { t: 20, r: 6, b: narrow ? narrowPadB : PAD_B, l: 34 };
   /* A short embed can drive the plot to a negative height, which d3 turns into
      inverted bars and an svg rect that throws on a negative height attribute —
      floor it so the card degrades to a squashed plot instead of breaking. */
@@ -851,6 +673,25 @@ function renderChart(){
   });
 
   fitAxisLabels(axisLabels, xSc.step());
+
+  /* How deep the region names run is decided by the bar spacing — a function
+     of the card's WIDTH — so measuring them here cannot feed back into the
+     next render the way a measurement of the plot would (the oscillation
+     chart-layout.js describes). The first narrow render at a given width is
+     drawn at the previous padding, measured, and redrawn once at the padding
+     the names actually need; every render after that is already correct and
+     the test costs nothing. */
+  if (narrow && !remeasuringPadB) {
+    const baseline = svg.node().getBoundingClientRect().top + pad.t + iH;
+    const deepest = Math.max(...axisLabels.map(n => n.getBoundingClientRect().bottom));
+    const needed = Math.ceil(deepest - baseline + LABEL_CLEARANCE);
+    if (needed > 0 && Math.abs(needed - narrowPadB) > 1) {
+      narrowPadB = needed;
+      remeasuringPadB = true;
+      try { renderChart(); } finally { remeasuringPadB = false; }
+      return;
+    }
+  }
 
   /* One transparent overlay across the whole plot rather than a rect per bar:
      the region shown is decided by which horizontal interval the cursor is in,
@@ -1466,8 +1307,22 @@ document.getElementById('opt-image').addEventListener('click', () => {
   document.getElementById('region-dropdown').classList.remove('open');
   document.getElementById('info-overlay').classList.remove('open');
   document.getElementById('info-modal').classList.remove('open');
-  copyChartAsImage();
+  copyChartAsImageDesktop();
 });
+
+/* An exported chart should look like the chart, not like the device it was
+   copied from. copyChartAsImage() builds its PNG from the live card, so on a
+   phone it inherited the phone layout and proportions; this stages the card
+   at its canonical desktop size first, off-screen, so every device produces
+   the same image. See ../../assets/export-desktop.js. */
+function copyChartAsImageDesktop(){
+  if(!window.USTExport) return copyChartAsImage();
+  const size = USTExport.DESKTOP.tile;
+  return USTExport.withDesktopLayout(
+    {width: size.width, height: size.height,
+     relayout(){ if(typeof renderChart === 'function') renderChart(); }},
+    copyChartAsImage);
+}
 
 /* ════════════════════════════════════
    INFO MODAL
@@ -1528,17 +1383,46 @@ document.getElementById('opt-image').addEventListener('click', () => {
         clamped so it never becomes a sliver or absurdly tall.
 ════════════════════════════════════ */
 (function setupResponsiveReflow(){
-  const ASPECT = 496 / 565;      // original card proportions
+  /* Shorter than the other cards' 496/565. Four bars and one row of
+     category labels do not need the height a time series does, and at the
+     original ratio the space reserved to keep the labels clear of the
+     action buttons showed up as a bare strip along the bottom. */
+  const ASPECT = 452 / 565;
   const MIN_H = 360, MAX_H = 900;
   const wrap = document.getElementById('explorer-wrap');
   if(!wrap) return;
 
   let lastSent = 0;
   function suggestHeight(){
+    /* Reserve a clear band at the bottom for the info/download/share buttons
+       and their blurred backdrop, so they never sit on top of the legend or
+       the last axis label. Runs standalone too — the collision is identical
+       either way — and the reserved pixels are added back to the height we
+       ask the embedder for, so clearing the buttons costs the plot nothing. */
+    const band = window.USTLayout ? USTLayout.applyFooterBand(wrap) : 0;
     if(window.parent === window) return;
+    /* Staged off-screen at desktop size for an image export (USTExport): the
+       height that box asks for is not the height this viewport wants, and
+       the card is about to move back. Reporting it would resize the embedding
+       iframe to a card that is no longer there. */
+    if(window.USTExport && USTExport.isExporting()) return;
     const w = wrap.clientWidth;
     if(!w) return;
-    const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)));
+    /* The band is reserved inside the card, not added on top of it. Adding
+       it kept the plot exactly the same size but made the card taller by
+       the same amount, which simply moved the collision out and left a
+       dead strip between the last label and the buttons. Keeping the
+       height as the aspect ratio dictates means the plot gives up those
+       pixels instead, and the buttons sit directly under the content. */
+    void band;
+    /* A narrow card has trimmed its bottom plot padding to the region names
+       (see NARROW_CARD): ask for a card shorter by exactly what was trimmed,
+       so the plot keeps the size it had and the pixels come off the dead
+       strip under the labels instead. MIN_H is what binds at phone width —
+       the aspect ratio asks for far less — so this is the only thing that
+       makes the card any shorter there. */
+    const trim = w < NARROW_CARD ? PAD_B - narrowPadB : 0;
+    const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)) - trim);
     if(h === lastSent) return;        // avoid a resize<->postMessage feedback loop
     lastSent = h;
     window.parent.postMessage({type:'ust-allocations-by-region-height', height:h}, '*');
@@ -1556,6 +1440,14 @@ document.getElementById('opt-image').addEventListener('click', () => {
   } else {
     window.addEventListener('resize', onResize);
   }
+  /* Re-measure once the chart has actually drawn: the first call runs
+     before the CSV has loaded, when there is no axis label or legend to
+     collide with the buttons yet. */
+  if(window.USTLayout && USTLayout.watch) USTLayout.watch(wrap, suggestHeight);
+  /* Reserving the band resizes the plot pane but not the card, so the
+     ResizeObserver above never fires and the chart would keep the size it
+     was first drawn at, scaled down by its own viewBox. Redraw it. */
+  if(window.USTLayout && USTLayout.observeAnchor) USTLayout.observeAnchor(wrap, onResize);
   suggestHeight();
 })();
 </script>

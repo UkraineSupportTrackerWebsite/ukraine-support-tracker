@@ -3,287 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ukraine Support Tracker – An die Ukraine zugewiesene Waffen, nach Geberland</title>
-  <style>
-    :root {
-      --font: Arial, sans-serif;
-      --font-serif: Arial, sans-serif;
-      --black: #1a1a1a;
-      --mid: #6b6b6b;
-      --border: #d0d0d0;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
-
-    /* Fluid: the card fills whatever box the embed gives it, in BOTH axes, so
-       no leftover margin can ever appear around it. */
-    html, body { height: 100%; }
-
-    .explorer-scale-container {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
-      background: #f6f1e7;
-    }
-
-    .explorer-wrap {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      height: 100%;
-      border: 1px solid #ddd6c8;
-      border-radius: 6px;
-      overflow: hidden;
-      background: #f6f1e7;
-      /* No drop shadow here: the card fills the whole iframe viewport, so the
-         shadow had nowhere to fall and only smudged grey into the rounded
-         corner cut-outs. The shadow now lives on the <iframe> in de_index.html. */
-      position: relative;
-    }
-
-    /* chart title area */
-    .chart-header {
-      padding: 0.45rem 1.1rem 0.6rem;
-      padding-right: 160px;
-      border-bottom: 1px solid #ddd6c8;
-      position: relative;
-      flex-shrink: 0;
-      background: #f6f1e7;
-      min-height: 76.5px;
-      box-sizing: border-box;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .chart-title {
-      font-family: var(--font-serif);
-      font-size: 1.5rem;
-      font-weight: 700;
-      line-height: 1.25;
-      color: #174abb;
-      margin-bottom: 0rem;
-    }
-    .kiel-logo {
-      position: absolute;
-      top: 50%; right: 17px;
-      transform: translateY(-50%);
-      line-height: 0;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-    }
-    .kiel-logo img { height: 40px; width: auto; display: block; }
-
-    /* controls bar */
-    .chart-controls {
-      flex-shrink: 0; padding: 0.55rem 0.55rem 0.35rem;
-      background: #f6f2e8;
-      display: flex; align-items: center; gap: 0.5rem;
-      font-size: 0.72rem; color: var(--mid);
-    }
-
-    /* custom dropdown (shared visual language with data explorer) */
-    .sort-custom { position: relative; flex: none; }
-    .sort-custom-btn {
-      display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
-      font-family: var(--font); font-size: 0.98rem;
-      border: 1px solid var(--border); border-radius: 3px;
-      padding: 0.46rem 0.86rem;
-      background: #f6f1e7; color: var(--black);
-      cursor: pointer; white-space: nowrap;
-      transition: background 0.1s;
-    }
-    .sort-custom-btn:hover { background: #ede8de; }
-    .sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
-    .sort-custom-dropdown {
-      display: none;
-      position: absolute;
-      top: calc(100% + 3px); left: 0;
-      min-width: 190px;
-      background: #f6f1e7;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      z-index: 100;
-      overflow: hidden;
-    }
-    .sort-custom-dropdown.open { display: block; }
-    .sort-custom-option {
-      display: flex; align-items: center; gap: 0.4rem;
-      padding: 0.3rem 0.6rem;
-      font-family: var(--font); font-size: 0.82rem;
-      color: var(--black); cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.1s;
-    }
-    .sort-custom-option:hover { background: #ede8de; }
-    .sort-custom-option.active { font-weight: 600; background: #d6e4f5; }
-
-    /* ── TABLE (matches Data Explorer's Table view) ─────────── */
-    .tbl-unit-label {
-      padding: 0.35rem 1.1rem 0.2rem;
-      font-size: 0.72rem;
-      color: var(--mid);
-      border-bottom: 1px solid #ddd6c8;
-      flex-shrink: 0;
-    }
-    .tbl-unit-label strong { color: var(--black); }
-    .tbl-scroll { flex: 1; overflow-y: auto; overflow-x: auto; padding-bottom: 8px; }
-    .data-table {
-      width: max-content; min-width: 100%; border-collapse: collapse;
-      font-size: 0.78rem; font-family: var(--font);
-    }
-    .data-table thead { position: sticky; top: 0; z-index: 5; background: #f6f1e7; }
-    .data-table th {
-      padding: 0.45rem 0.55rem;
-      text-align: left; font-weight: 500; font-size: 0.72rem; color: var(--mid);
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-    }
-    .data-table th.num { text-align: right; }
-    .data-table th.sortable { cursor: pointer; user-select: none; }
-    .data-table th.sortable:hover { color: var(--black); }
-    .sort-arrow { margin-left: 2px; opacity: 0.5; font-size: 0.62rem; }
-    .data-table td {
-      padding: 0.38rem 0.55rem;
-      border-bottom: 1px solid #ddd6c8;
-      color: var(--black);
-      vertical-align: top;
-    }
-    .data-table tr:last-child td { border-bottom: none; }
-    .data-table tr:hover td { background: #ede8de; }
-    .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .data-table td.weapons-list { white-space: nowrap; }
-    /* Push any leftover table width into the last column so the slack no longer
-       shows up as a gap in front of "Monetary Value", and use that space as a
-       separator between "Monetary Value" and "List of Weapons" instead. */
-    .data-table th:last-child, .data-table td.weapons-list { width: 100%; padding-left: 72px; }
-    /* Same 72px separator in front of the "Monetary Value" column, so the two
-       gaps flanking it match. */
-    .data-table th:nth-child(3), .data-table td:nth-child(3) { padding-left: 72px; }
-
-    .tbl-scroll { scrollbar-width: thin; scrollbar-color: #ddd #f6f1e7; background: #f6f1e7; }
-    .tbl-scroll::-webkit-scrollbar { width: 5px; height: 5px; background: #f6f1e7; }
-    .tbl-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    .tbl-scroll::-webkit-scrollbar-track { background: #f6f1e7; }
-    .tbl-scroll::-webkit-scrollbar-corner { background: #f6f1e7; }
-
-    /* footer */
-    .chart-footer {
-      flex-shrink: 0;
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      padding: 0.5rem 1.1rem;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 1rem;
-      z-index: 20;
-      pointer-events: none;
-    }
-    .footer-icons {
-      position: relative;
-      display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
-      pointer-events: auto;
-    }
-    .footer-icons::before {
-      content: '';
-      position: absolute;
-      top: -6px; bottom: -6px; right: -8px; left: -40px;
-      z-index: -1;
-      background: rgba(246,241,231,0.35);
-      backdrop-filter: blur(1px);
-      -webkit-backdrop-filter: blur(1.5px);
-      -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
-      mask-image: linear-gradient(to right, transparent, #000 32px);
-    }
-    .footer-icon-btn {
-      width: 30px; height: 30px; border-radius: 3px;
-      border: 1px solid var(--border); background: #f6f1e7;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--mid); transition: background 0.1s;
-    }
-    .footer-icon-btn:hover { background: #ede8de; color: var(--black); }
-    .footer-icon-btn svg { width: 14px; height: 14px; }
-
-    /* share dropdown */
-    .share-wrap { position: relative; }
-    .share-dropdown {
-      display: none; position: absolute; right: 0; bottom: 110%;
-      background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
-    }
-    .share-dropdown.open { display: block; }
-    .share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
-    .share-option {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
-    }
-    .share-option:hover { background: #ede8de; }
-    .share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
-
-    /* copy toast */
-    #copy-toast {
-      position: fixed; bottom: 1.5rem; right: 1.5rem;
-      background: #222; color: #fff; font-size: 0.76rem;
-      padding: 0.45rem 1rem; border-radius: 4px;
-      opacity: 0; transition: opacity 0.25s; pointer-events: none;
-      z-index: 9999; font-family: var(--font);
-    }
-    #copy-toast.show { opacity: 1; }
-
-    /* ── Info Modal ── */
-    #info-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.32); z-index: 3000;
-    }
-    #info-overlay.open { display: block; }
-    #info-modal {
-      display: none; position: fixed; z-index: 3001;
-      left: 50%; top: 50%; transform: translate(-50%,-50%);
-      background: #f6f1e7; border: 1px solid #ddd6c8;
-      border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
-      width: 500px; max-width: calc(100vw - 3rem);
-      max-height: calc(100vh - 4rem);
-      font-family: var(--font);
-    }
-    #info-modal.open { display: block; }
-    #info-modal-inner { padding: 1rem; max-height: calc(100vh - 4rem); overflow-y: auto; }
-    #info-modal-inner::-webkit-scrollbar { width: 5px; }
-    #info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    #info-close {
-      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
-      width: 30px; height: 30px; border-radius: 50%;
-      border: 1px solid var(--border); background: #f6f1e7;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--mid); transition: background 0.1s;
-    }
-    #info-close:hover { background: #ede8de; color: var(--black); }
-    #info-close svg { width: 13px; height: 13px; }
-    #info-eyebrow {
-      font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: #ff6b00;
-      line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
-    }
-    #info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
-    #info-body p { margin: 0 0 0.7rem; }
-    #info-body p:last-child { margin-bottom: 0; }
-    #info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
-    #info-body .info-tag {
-      display: inline-block; font-size: 0.72rem; font-weight: 600;
-      color: #fff; background: #688fdc;
-      border: 1px solid #688fdc; border-radius: 3px;
-      padding: 0.2rem 0.55rem;
-    }
-    #info-body .info-source {
-      margin-top: 1rem; padding-top: 0.7rem;
-      border-top: 1px solid #ddd6c8;
-      font-size: 0.75rem; color: var(--mid); line-height: 1.6;
-    }
-  </style>
+  <title>Ukraine Support Tracker – An die Ukraine zugewiesene Waffen, nach Geber</title>
+  <link rel="stylesheet" href="../../assets/css/chart-base.css" />
+  <link rel="stylesheet" href="../../assets/css/weapons_by_donor.css" />
+  <link rel="stylesheet" href="../../assets/css/responsive.css" />
+  <script src="../../assets/chart-layout.js"></script>
+  <script src="../../assets/export-desktop.js"></script>
 </head>
 <body>
 
@@ -405,11 +130,11 @@ function weaponRowsFromCSV(rows){
 }
 
 const CATEGORY_INFO = {
-  "Air Defense": { title: "An die Ukraine zugewiesene Luftverteidigungssysteme, nach Geberland", tag: "Luftverteidigungssysteme", noun: "Luftverteidigungssysteme", countLabel: "Anzahl der Luftverteidigungssysteme" },
-  "Tanks":       { title: "An die Ukraine zugewiesene Panzer, nach Geberland", tag: "Panzer", noun: "Panzer", countLabel: "Anzahl der Panzer" },
-  "IFV":         { title: "An die Ukraine zugewiesene Schützenpanzer, nach Geberland", tag: "Schützenpanzer", noun: "Schützenpanzer", countLabel: "Anzahl der Schützenpanzer" },
-  "Howitzers":   { title: "An die Ukraine zugewiesene Haubitzen, nach Geberland", tag: "Haubitzen", noun: "Haubitzen (152/155 mm)", countLabel: "Anzahl der Haubitzen" },
-  "MLRS":        { title: "An die Ukraine zugewiesene Mehrfachraketenwerfer, nach Geberland", tag: "Mehrfachraketenwerfer", noun: "Mehrfachraketenwerfer", countLabel: "Anzahl der Mehrfachraketenwerfer" }
+  "Air Defense": { title: "An die Ukraine zugewiesene Luftverteidigungssysteme, nach Geber", tag: "Luftverteidigungssysteme", noun: "Luftverteidigungssysteme", countLabel: "Anzahl der Luftverteidigungssysteme" },
+  "Tanks":       { title: "An die Ukraine zugewiesene Panzer, nach Geber", tag: "Panzer", noun: "Panzer", countLabel: "Anzahl der Panzer" },
+  "IFV":         { title: "An die Ukraine zugewiesene Schützenpanzer, nach Geber", tag: "Schützenpanzer", noun: "Schützenpanzer", countLabel: "Anzahl der Schützenpanzer" },
+  "Howitzers":   { title: "An die Ukraine zugewiesene Haubitzen, nach Geber", tag: "Haubitzen", noun: "Haubitzen (152/155 mm)", countLabel: "Anzahl der Haubitzen" },
+  "MLRS":        { title: "An die Ukraine zugewiesene Mehrfachraketenwerfer, nach Geber", tag: "Mehrfachraketenwerfer", noun: "Mehrfachraketenwerfer", countLabel: "Anzahl der Mehrfachraketenwerfer" }
 };
 
 function formatWeaponsList(weapons){
@@ -811,8 +536,21 @@ document.getElementById('opt-image').addEventListener('click', () => {
   document.getElementById('weapon-cat-dropdown').classList.remove('open');
   document.getElementById('info-overlay').classList.remove('open');
   document.getElementById('info-modal').classList.remove('open');
-  copyChartAsImage();
+  copyChartAsImageDesktop();
 });
+
+/* An exported chart should look like the chart, not like the device it was
+   copied from. copyChartAsImage() builds its PNG from the live card, so on a
+   phone it inherited the phone layout and proportions; this stages the card
+   at its canonical desktop size first, off-screen, so every device produces
+   the same image. See ../../assets/export-desktop.js. */
+function copyChartAsImageDesktop(){
+  if(!window.USTExport) return copyChartAsImage();
+  const size = USTExport.DESKTOP.weapons;
+  return USTExport.withDesktopLayout(
+    {width: size.width, height: size.height,},
+    copyChartAsImage);
+}
 
 /* ════════════════════════════════════
    INFO MODAL
@@ -867,10 +605,27 @@ document.getElementById('opt-image').addEventListener('click', () => {
 
   let lastSent = 0;
   function suggestHeight(){
+    /* Reserve a clear band at the bottom for the info/download/share buttons
+       and their blurred backdrop, so they never sit on top of the legend or
+       the last axis label. Runs standalone too — the collision is identical
+       either way — and the reserved pixels are added back to the height we
+       ask the embedder for, so clearing the buttons costs the plot nothing. */
+    /* reserve:false — this card is a table, and its rows are meant to run all
+       the way to the bottom edge and pass *under* the blurred backdrop, the
+       way the buttons float over a chart on the other cards. Reserving the
+       band instead ended the rows above the buttons and left a bare strip.
+       The band is still measured and still added to the height below, so the
+       card asks its embedder for exactly the same number of pixels. */
+    const band = window.USTLayout ? USTLayout.applyFooterBand(wrap, {reserve:false}) : 0;
     if(window.parent === window) return;
+    /* Staged off-screen at desktop size for an image export (USTExport): the
+       height that box asks for is not the height this viewport wants, and
+       the card is about to move back. Reporting it would resize the embedding
+       iframe to a card that is no longer there. */
+    if(window.USTExport && USTExport.isExporting()) return;
     const w = wrap.clientWidth;
     if(!w) return;
-    const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)));
+    const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)) + band);
     if(h === lastSent) return;        // avoid a resize<->postMessage feedback loop
     lastSent = h;
     window.parent.postMessage({type:'ust-weapons-height', height:h}, '*');
@@ -881,6 +636,10 @@ document.getElementById('opt-image').addEventListener('click', () => {
   } else {
     window.addEventListener('resize', suggestHeight);
   }
+  /* Re-measure once the chart has actually drawn: the first call runs
+     before the CSV has loaded, when there is no axis label or legend to
+     collide with the buttons yet. */
+  if(window.USTLayout && USTLayout.watch) USTLayout.watch(wrap, suggestHeight);
   suggestHeight();
 })();
 </script>

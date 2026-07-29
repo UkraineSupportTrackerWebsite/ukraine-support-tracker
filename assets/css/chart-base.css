@@ -1,0 +1,242 @@
+/* ════════════════════════════════════════════════════════════════════
+   chart-base.css — chrome shared by every chart widget page.
+
+   Loaded by all 12 chart pages (HTML/english + HTML/german). Contains only
+   rules that were byte-identical across the pages that used them: the reset,
+   fonts, card frame, dropdown menus, footer icon buttons, share menu and the
+   info modal.
+
+   Selectors whose declarations legitimately differ per page (:root,
+   .chart-header, .chart-controls, .data-table, .kiel-logo img, ...) live in
+   the matching per-page file, which loads after this one.
+
+   Load order on every chart page:
+     chart-base.css → <page>.css → responsive.css
+════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.sort-custom-btn:hover { background: #ede8de; }
+.sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
+.sort-custom-dropdown.open { display: block; }
+/* The donor list is the Data Explorer's full option set — five aggregates
+   plus every donor country — so unlike the region selector it has to
+   scroll, and it gets the explorer's section headings. */
+.sort-custom-list {
+  max-height: 244px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.sort-custom-list::-webkit-scrollbar { width: 5px; }
+.sort-custom-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+.sort-custom-group {
+  padding: 0.45rem 0.7rem 0.2rem;
+  font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--mid);
+}
+.sort-custom-option:hover { background: #ede8de; }
+.cat-swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.sort-custom-actions {
+  display: flex; justify-content: space-between; gap: 0.9rem;
+  padding: 0.45rem 0.7rem;
+  border-top: 1px solid var(--border);
+}
+.sort-custom-action {
+  background: none; border: none; padding: 0;
+  font-family: var(--font); font-size: 0.76rem; font-weight: 600;
+  color: var(--mid); cursor: pointer;
+}
+.sort-custom-action:hover { color: var(--black); text-decoration: underline; }
+#axis-svg { width: 100%; flex-shrink: 0; display: block; overflow: visible; }
+#bar-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+#bar-scroll::-webkit-scrollbar { width: 6px; }
+#bar-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+/* Bars carry this card's brand color — navy for military aid — with a
+   lighter tint for the aggregates. Every bar is directly labeled and all
+   chart text stays in ink colors rather than wearing its series color. */
+.bar-rect { transition: opacity 0.12s; }
+/* clickable: a click pins the popup so its rows can be read at leisure */
+.bar-hit { cursor: pointer; }
+.empty-note {
+  position: absolute; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  font-size: 0.9rem; color: var(--mid);
+  pointer-events: none;
+}
+.empty-note.show { display: flex; }
+#bar-hover-popup.show { display: block; }
+#bar-hover-popup.pinned {
+  pointer-events: auto;
+  border-color: #b8b0a0;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.24);
+}
+.bar-popup-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
+  padding: 0 0.7rem 0.4rem;
+  border-bottom: 1px solid #eee6d8;
+  margin-bottom: 0.3rem;
+}
+.bar-popup-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--black);
+  flex: 1 1 100px;
+}
+.bar-popup-total {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #ff6b00;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.bar-popup-list::-webkit-scrollbar { width: 5px; }
+.bar-popup-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+.bar-popup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.18rem 0;
+  font-size: 0.78rem;
+}
+/* the row for the aid type this card actually plots */
+.bar-popup-row.is-metric .bar-popup-country,
+.bar-popup-row.is-metric .bar-popup-amount { font-weight: 700; }
+.bar-popup-row.is-rule {
+  border-top: 1px solid #eee6d8;
+  margin-top: 0.25rem;
+  padding-top: 0.3rem;
+}
+.bar-popup-country {
+  color: #333;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+.bar-popup-amount {
+  color: var(--black);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.bar-popup-note {
+  padding: 0.35rem 0.7rem 0;
+  font-size: 0.7rem; line-height: 1.35;
+  color: var(--mid);
+}
+.footer-icon-btn {
+  width: 30px; height: 30px; border-radius: 3px;
+  border: 1px solid var(--border); background: #f6f1e7;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--mid); transition: background 0.1s;
+}
+.footer-icon-btn svg { width: 14px; height: 14px; }
+/* share dropdown */
+.share-wrap { position: relative; }
+.share-dropdown {
+  display: none; position: absolute; right: 0; bottom: 110%;
+  background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
+}
+.share-dropdown.open { display: block; }
+.share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
+.share-option {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
+}
+.share-option:hover { background: #ede8de; }
+.share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
+/* copy toast */
+#copy-toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem;
+  background: #222; color: #fff; font-size: 0.76rem;
+  padding: 0.45rem 1rem; border-radius: 4px;
+  opacity: 0; transition: opacity 0.25s; pointer-events: none;
+  z-index: 9999; font-family: var(--font);
+}
+#copy-toast.show { opacity: 1; }
+/* ── Info Modal ── */
+#info-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.32); z-index: 3000;
+}
+#info-overlay.open { display: block; }
+#info-modal {
+  display: none; position: fixed; z-index: 3001;
+  left: 50%; top: 50%; transform: translate(-50%,-50%);
+  background: #f6f1e7; border: 1px solid #ddd6c8;
+  border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+  width: 500px; max-width: calc(100vw - 3rem);
+  max-height: calc(100vh - 4rem);
+  font-family: var(--font);
+}
+#info-modal.open { display: block; }
+#info-modal-inner { padding: 1rem; max-height: calc(100vh - 4rem); overflow-y: auto; }
+#info-modal-inner::-webkit-scrollbar { width: 5px; }
+#info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+#info-close {
+  position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--border); background: #f6f1e7;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--mid); transition: background 0.1s;
+}
+#info-close svg { width: 13px; height: 13px; }
+#info-eyebrow {
+  font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #ff6b00;
+  line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
+}
+#info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
+#info-body p { margin: 0 0 0.7rem; }
+#info-body p:last-child { margin-bottom: 0; }
+#info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+#info-body .info-tag {
+  display: inline-block; font-size: 0.72rem; font-weight: 600;
+  color: #fff; background: #688fdc;
+  border: 1px solid #688fdc; border-radius: 3px;
+  padding: 0.2rem 0.55rem;
+}
+#info-body .info-def {
+  margin: 0 0 0.7rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid #ddd6c8;
+}
+#info-body .info-source {
+  margin-top: 1rem; padding-top: 0.7rem;
+  border-top: 1px solid #ddd6c8;
+  font-size: 0.75rem; color: var(--mid); line-height: 1.6;
+}
+a { color: inherit; text-decoration: none; }
+#line-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.line-legend {
+  flex-shrink: 0; display: flex; flex-wrap: wrap;
+  gap: 0.3rem 1.1rem; padding: 0rem 1.1rem 0.55rem;
+  font-size: 0.82rem;
+}
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.sort-custom-option.active { font-weight: 600; background: #d6e4f5; }
+/* ── TABLE (matches Data Explorer's Table view) ─────────── */
+.tbl-unit-label {
+  padding: 0.35rem 1.1rem 0.2rem;
+  font-size: 0.72rem;
+  color: var(--mid);
+  border-bottom: 1px solid #ddd6c8;
+  flex-shrink: 0;
+}
+.tbl-unit-label strong { color: var(--black); }
+.data-table thead { position: sticky; top: 0; z-index: 5; background: #f6f1e7; }
+.data-table th.num { text-align: right; }
+.sort-arrow { margin-left: 2px; opacity: 0.5; font-size: 0.62rem; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: #ede8de; }

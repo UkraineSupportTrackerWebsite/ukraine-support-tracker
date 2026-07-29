@@ -4,439 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ukraine Support Tracker – Total Allocations to Ukraine, by Donor</title>
-  <style>
-    :root {
-      --font: Arial, sans-serif;
-      --font-serif: Arial, sans-serif;
-      --black: #1a1a1a;
-      --mid: #6b6b6b;
-      --border: #d0d0d0;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
-
-    /* Fluid: the card fills whatever box the embed gives it, in BOTH axes, so
-       no leftover margin can ever appear around it. */
-    html, body { height: 100%; }
-
-    .explorer-scale-container {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
-      background: #f6f1e7;
-    }
-
-    .explorer-wrap {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      height: 100%;
-      border: 1px solid #ddd6c8;
-      border-radius: 6px;
-      overflow: hidden;
-      background: #f6f1e7;
-      /* No drop shadow here: the card fills the whole iframe viewport, so the
-         shadow had nowhere to fall and only smudged grey into the rounded
-         corner cut-outs. The shadow now lives on the <iframe> in en_index.html. */
-      position: relative;
-    }
-
-    .chart-header {
-      padding: 0.9rem 1.1rem 0.7rem;
-      padding-right: 185px;
-      border-bottom: 1px solid #ddd6c8;
-      position: relative;
-      flex-shrink: 0;
-      background: #f6f1e7;
-      min-height: 76.5px;
-      box-sizing: border-box;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .chart-title {
-      font-family: var(--font-serif);
-      font-size: 1.5rem;
-      font-weight: 700;
-      line-height: 1.25;
-      color: #174abb;
-      margin-bottom: 0rem;
-    }
-    .kiel-logo {
-      position: absolute;
-      top: 50%; right: 17px;
-      transform: translateY(-50%);
-      line-height: 0;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-    }
-    .kiel-logo img { height: 40px; width: auto; display: block; }
-
-    /* ── CONTROLS BAR ────────────────────────────────────────────
-       Identical metrics to the region / category selectors (0.98rem button at
-       line-height 1.15 inside 0.55rem padding = 46.06px tall), so this card
-       stacks exactly like the two above it and the plots line up across the
-       grid. line-height is pinned here rather than left to the UA sheet, which
-       resets buttons to `normal` and would tie the height to Arial's metrics.
-    ───────────────────────────────────────────────────────────── */
-    .chart-controls {
-      flex-shrink: 0; padding: 0.55rem;
-      background: #f6f2e8;
-      display: flex; align-items: center; gap: 0.5rem;
-      font-size: 0.72rem; color: var(--mid);
-    }
-
-    /* custom dropdown (shared visual language with data explorer) */
-    .sort-custom { position: relative; flex: none; }
-    .sort-custom-btn {
-      display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
-      font-family: var(--font); font-size: 0.98rem; line-height: 1.15;
-      border: 1px solid var(--border); border-radius: 3px;
-      padding: 0.46rem 0.86rem;
-      background: #f6f1e7; color: var(--black);
-      cursor: pointer; white-space: nowrap;
-      transition: background 0.1s;
-    }
-    .sort-custom-btn:hover { background: #ede8de; }
-    .sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
-    .sort-custom-dropdown {
-      display: none;
-      position: absolute;
-      top: calc(100% + 3px); left: 0;
-      min-width: 230px;
-      background: #f6f1e7;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      z-index: 100;
-      overflow: hidden;
-    }
-    .sort-custom-dropdown.open { display: block; }
-
-    /* The donor list is the Data Explorer's full option set — five aggregates
-       plus every donor country — so unlike the region selector it has to
-       scroll, and it gets the explorer's section headings. */
-    .sort-custom-list {
-      max-height: 244px;
-      overflow-y: auto;
-      scrollbar-width: thin;
-    }
-    .sort-custom-list::-webkit-scrollbar { width: 5px; }
-    .sort-custom-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    .sort-custom-group {
-      padding: 0.45rem 0.7rem 0.2rem;
-      font-size: 0.66rem; font-weight: 700;
-      letter-spacing: 0.07em; text-transform: uppercase;
-      color: var(--mid);
-    }
-    .sort-custom-option {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.28rem 0.7rem;
-      font-family: var(--font); font-size: 0.82rem;
-      color: var(--black); cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.1s;
-    }
-    .sort-custom-option:hover { background: #ede8de; }
-    .sort-custom-option input[type="checkbox"] {
-      appearance: none; -webkit-appearance: none;
-      width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
-      border: 1.5px solid #b0a898; border-radius: 2px;
-      background: #f6f1e7;
-      transition: border-color 0.1s;
-    }
-    .sort-custom-option input[type="checkbox"]:checked {
-      border-color: #ff6b00;
-      background: #ff6b00;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13'%3E%3Cpath d='M2.5 6.5l3 3 5-5' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
-      background-size: 100% 100%;
-    }
-    .cat-swatch { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-    .sort-custom-actions {
-      display: flex; justify-content: space-between; gap: 0.9rem;
-      padding: 0.45rem 0.7rem;
-      border-top: 1px solid var(--border);
-    }
-    .sort-custom-action {
-      background: none; border: none; padding: 0;
-      font-family: var(--font); font-size: 0.76rem; font-weight: 600;
-      color: var(--mid); cursor: pointer;
-    }
-    .sort-custom-action:hover { color: var(--black); text-decoration: underline; }
-
-    /* ── BAR CHART BODY ──────────────────────────────────────────
-       Two SVGs, not one: the value axis is a fixed strip at the top and the
-       bars live in a scroller underneath. With every option selected the
-       ranking is 46 bars long — far more than fits at a legible row height —
-       so the plot grows past the card and scrolls, while the axis it is read
-       against stays put. When the selection does fit, the scroller never
-       scrolls and the card looks exactly like a static chart.
-    ─────────────────────────────────────────────────────────────── */
-    .bar-body {
-      flex: 1;
-      min-height: 0;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      padding-left: 0.4rem;
-    }
-    #axis-svg { width: 100%; flex-shrink: 0; display: block; overflow: visible; }
-    #bar-scroll {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      overflow-x: hidden;
-      scrollbar-width: thin;
-    }
-    #bar-scroll::-webkit-scrollbar { width: 6px; }
-    #bar-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    #bar-svg { width: 100%; display: block; overflow: visible; }
-
-    /* Bars carry this card's brand color — orange for total aid — with a
-       lighter tint for the aggregates. Every bar is directly labeled and all
-       chart text stays in ink colors rather than wearing its series color. */
-    .bar-rect { transition: opacity 0.12s; }
-    /* clickable: a click pins the popup so its rows can be read at leisure */
-    .bar-hit { cursor: pointer; }
-
-    .empty-note {
-      position: absolute; inset: 0;
-      display: none;
-      align-items: center; justify-content: center;
-      font-size: 0.9rem; color: var(--mid);
-      pointer-events: none;
-    }
-    .empty-note.show { display: flex; }
-
-    /* ── breakdown popup (follows cursor over the bars, until pinned) ── */
-    #bar-hover-popup {
-      display: none;
-      position: absolute;
-      z-index: 250;
-      background: #f6f1e7;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
-      width: 215px;
-      padding: 0.55rem 0;
-      font-family: var(--font);
-      /* While trailing the cursor the card must not eat pointer events, or a
-         fast sweep lands the cursor on the card and stalls the tracking. It
-         only becomes interactive once pinned. */
-      pointer-events: none;
-    }
-    #bar-hover-popup.show { display: block; }
-    #bar-hover-popup.pinned {
-      pointer-events: auto;
-      border-color: #b8b0a0;
-      box-shadow: 0 8px 28px rgba(0,0,0,0.24);
-    }
-    .bar-popup-header {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 0.15rem 0.5rem;
-      padding: 0 0.7rem 0.4rem;
-      border-bottom: 1px solid #eee6d8;
-      margin-bottom: 0.3rem;
-    }
-    .bar-popup-title {
-      font-size: 0.86rem;
-      font-weight: 700;
-      color: var(--black);
-      flex: 1 1 100px;
-    }
-    .bar-popup-total {
-      font-size: 0.86rem;
-      font-weight: 700;
-      color: #ff6b00;
-      flex-shrink: 0;
-      white-space: nowrap;
-    }
-    .bar-popup-list {
-      max-height: 175px;
-      overflow-y: auto;
-      padding: 0 0.7rem;
-    }
-    .bar-popup-list::-webkit-scrollbar { width: 5px; }
-    .bar-popup-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    .bar-popup-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 0.6rem;
-      padding: 0.18rem 0;
-      font-size: 0.78rem;
-    }
-    /* the row for the aid type this card actually plots */
-    .bar-popup-row.is-metric .bar-popup-country,
-    .bar-popup-row.is-metric .bar-popup-amount { font-weight: 700; }
-    .bar-popup-row.is-rule {
-      border-top: 1px solid #eee6d8;
-      margin-top: 0.25rem;
-      padding-top: 0.3rem;
-    }
-    .bar-popup-country {
-      color: #333;
-      overflow-wrap: break-word;
-      min-width: 0;
-    }
-    .bar-popup-amount {
-      color: var(--black);
-      font-weight: 600;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .bar-popup-note {
-      padding: 0.35rem 0.7rem 0;
-      font-size: 0.7rem; line-height: 1.35;
-      color: var(--mid);
-    }
-
-    .chart-footer {
-      flex-shrink: 0;
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      padding: 0.5rem 1.1rem;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 1rem;
-      z-index: 20;
-    }
-    .footer-icons {
-      position: relative;
-      display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
-    }
-    .footer-icons::before {
-      content: '';
-      position: absolute;
-      top: -6px; bottom: -6px; right: -8px; left: -40px;
-      z-index: -1;
-      background: rgba(246,241,231,0.35);
-      backdrop-filter: blur(1.5px);
-      -webkit-backdrop-filter: blur(1.5px);
-      -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
-      mask-image: linear-gradient(to right, transparent, #000 32px);
-    }
-    /* ── series key ──────────────────────────────────────────────
-       Same component as the Data Explorer's bar-view legend (#bar-legend
-       there): a translucent cream chip carrying a 12px swatch per series, in
-       muted ink rather than in the series colors. It rides in the footer to the
-       left of the icon cluster, so the two float over the plot as one group and
-       the popup's blockedRects() can keep clear of both.
-    ───────────────────────────────────────────────────────────── */
-    .bar-legend {
-      display: none;                 /* set to flex by renderChart when a bar is split */
-      align-items: center; gap: 14px;
-      flex-shrink: 0;
-      background: rgba(246,242,232,0.95);
-      border-radius: 3px;
-      padding: 6px 11px;
-      font-size: 0.86rem; color: #888;
-      white-space: nowrap;
-      pointer-events: none;
-    }
-    .bar-legend .legend-item { display: flex; align-items: center; gap: 6px; }
-    .bar-legend .legend-swatch {
-      display: inline-block; width: 12px; height: 12px;
-      border-radius: 2px; flex-shrink: 0;
-    }
-
-    .footer-icon-btn {
-      width: 30px; height: 30px; border-radius: 3px;
-      border: 1px solid var(--border); background: #f6f1e7;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--mid); transition: background 0.1s;
-    }
-    .footer-icon-btn:hover { background: #ede8de; color: var(--black); }
-    .footer-icon-btn svg { width: 14px; height: 14px; }
-
-    /* share dropdown */
-    .share-wrap { position: relative; }
-    .share-dropdown {
-      display: none; position: absolute; right: 0; bottom: 110%;
-      background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
-    }
-    .share-dropdown.open { display: block; }
-    .share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
-    .share-option {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
-    }
-    .share-option:hover { background: #ede8de; }
-    .share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
-
-    /* copy toast */
-    #copy-toast {
-      position: fixed; bottom: 1.5rem; right: 1.5rem;
-      background: #222; color: #fff; font-size: 0.76rem;
-      padding: 0.45rem 1rem; border-radius: 4px;
-      opacity: 0; transition: opacity 0.25s; pointer-events: none;
-      z-index: 9999; font-family: var(--font);
-    }
-    #copy-toast.show { opacity: 1; }
-
-    /* ── Info Modal ── */
-    #info-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.32); z-index: 3000;
-    }
-    #info-overlay.open { display: block; }
-    #info-modal {
-      display: none; position: fixed; z-index: 3001;
-      left: 50%; top: 50%; transform: translate(-50%,-50%);
-      background: #f6f1e7; border: 1px solid #ddd6c8;
-      border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
-      width: 500px; max-width: calc(100vw - 3rem);
-      max-height: calc(100vh - 4rem);
-      font-family: var(--font);
-    }
-    #info-modal.open { display: block; }
-    #info-modal-inner { padding: 1rem; max-height: calc(100vh - 4rem); overflow-y: auto; }
-    #info-modal-inner::-webkit-scrollbar { width: 5px; }
-    #info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    #info-close {
-      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
-      width: 30px; height: 30px; border-radius: 50%;
-      border: 1px solid var(--border); background: #f6f1e7;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--mid); transition: background 0.1s;
-    }
-    #info-close:hover { background: #ede8de; color: var(--black); }
-    #info-close svg { width: 13px; height: 13px; }
-    #info-eyebrow {
-      font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: #ff6b00;
-      line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
-    }
-    #info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
-    #info-body p { margin: 0 0 0.7rem; }
-    #info-body p:last-child { margin-bottom: 0; }
-    #info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
-    #info-body .info-tag {
-      display: inline-block; font-size: 0.72rem; font-weight: 600;
-      color: #fff; background: #688fdc;
-      border: 1px solid #688fdc; border-radius: 3px;
-      padding: 0.2rem 0.55rem;
-    }
-    #info-body .info-def {
-      margin: 0 0 0.7rem;
-      padding-left: 0.7rem;
-      border-left: 2px solid #ddd6c8;
-    }
-    #info-body .info-source {
-      margin-top: 1rem; padding-top: 0.7rem;
-      border-top: 1px solid #ddd6c8;
-      font-size: 0.75rem; color: var(--mid); line-height: 1.6;
-    }
-  </style>
+  <link rel="stylesheet" href="../../assets/css/chart-base.css" />
+  <link rel="stylesheet" href="../../assets/css/allocations_by_donor.css" />
+  <link rel="stylesheet" href="../../assets/css/responsive.css" />
+  <script src="../../assets/chart-layout.js"></script>
+  <script src="../../assets/export-desktop.js"></script>
 </head>
 <body>
 
@@ -859,6 +431,19 @@ const LABEL_WRAP_EM = 5.0;       // width a name wraps at, in multiples of its o
 const LABEL_PAD = 10;            // gap between a name and its bar
 const VALUE_PAD = 66;            // room at the right for the value at a bar's end
 const AXIS_H = 20;               // the fixed value-axis strip above the bars
+/* Phone: the strip carries nothing but the unit ("€ billion" / "Mrd. €"), and
+   every bar is already labelled with its own value AND its unit right next to
+   it — so on the narrowest screens the strip is a repeated caption costing a
+   row of height. Drop it there and hand its height to the plot, which lifts
+   the bars up towards the donor selector without the card itself shrinking.
+
+   Excluded during a "copy chart as image" capture: USTExport stages the card
+   at desktop width behind .exporting-desktop, and that image should be the
+   desktop chart, unit strip and all. Matches the 560px breakpoint the phone
+   rules in responsive.css use. */
+const isPhoneChart = () => window.matchMedia('(max-width: 560px)').matches
+  && !document.documentElement.classList.contains('exporting-desktop');
+const axisStripH = () => isPhoneChart() ? 0 : AXIS_H;
 const MIN_SLOT = 26;             // per-donor slot below which the plot scrolls
 const LABEL_LINE_RATIO = 1.12;   // leading of a wrapped name, as a multiple of its font size
 const MAX_BAR_H_FRACTION = 0.36; // cap on a bar's thickness, as a share of the available plot
@@ -983,6 +568,7 @@ function renderChart(){
      that same width — the unit-label strip explicitly, since it lives outside
      the scroller — so the two stay aligned either way. */
   const W = scroller.clientWidth || body.clientWidth || 530;
+  const axisH = axisStripH();
   const bodyH = body.clientHeight || 370;
 
   const DATA = DONOR_DATA
@@ -998,7 +584,7 @@ function renderChart(){
   updateLegend(DATA, body.clientWidth || W);
   axisSvg.style('width', `${W}px`);
   if (!DATA.length) {
-    axisSvg.attr('viewBox', `0 0 ${W} ${AXIS_H}`).attr('height', AXIS_H);
+    axisSvg.attr('viewBox', `0 0 ${W} ${axisH}`).attr('height', axisH);
     svg.attr('viewBox', `0 0 ${W} 10`).attr('height', 10);
     popupCtl = null;
     return;
@@ -1050,7 +636,7 @@ function renderChart(){
      the neighbours of a four-line aggregate are pushed apart, the rest of the
      ranking stays tight. Any height left over widens the gap so the bars still
      fill the card. Same behaviour as the Data Explorer's ranking bars. */
-  const availH = Math.max(60, bodyH - AXIS_H);
+  const availH = Math.max(60, bodyH - axisH);
   const availInner = Math.max(20, availH - pad.t - pad.b);
   const slotFit = availInner / (DATA.length - BAR_PAD_INNER + 2 * BAR_PAD_OUTER);
   const slot = Math.max(MIN_SLOT, slotFit);
@@ -1073,7 +659,7 @@ function renderChart(){
   const H = iH + pad.t + pad.b;
 
   svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
-  axisSvg.attr('viewBox', `0 0 ${W} ${AXIS_H}`).attr('height', AXIS_H);
+  axisSvg.attr('viewBox', `0 0 ${W} ${axisH}`).attr('height', axisH);
   const g = svg.append('g').attr('transform', `translate(${pad.l},${pad.t})`);
 
   /* Row tops, walked once: a row is as tall as the taller of its bar and its
@@ -1093,7 +679,7 @@ function renderChart(){
   /* ── the fixed axis strip: unit label, ticks, and the rule the bars hang
      from. The region chart's y-axis, turned on its side and lifted out of the
      scroller so the numbers stay put while a long ranking scrolls past. ── */
-  axisSvg.append('text')
+  if (axisH) axisSvg.append('text')
     .attr('x', 4).attr('y', 13)
     .attr('font-size', '0.9rem').attr('fill', '#000')
     .text('€ billion');
@@ -1840,8 +1426,22 @@ document.getElementById('opt-image').addEventListener('click', () => {
   document.getElementById('donor-dropdown').classList.remove('open');
   document.getElementById('info-overlay').classList.remove('open');
   document.getElementById('info-modal').classList.remove('open');
-  copyChartAsImage();
+  copyChartAsImageDesktop();
 });
+
+/* An exported chart should look like the chart, not like the device it was
+   copied from. copyChartAsImage() builds its PNG from the live card, so on a
+   phone it inherited the phone layout and proportions; this stages the card
+   at its canonical desktop size first, off-screen, so every device produces
+   the same image. See ../../assets/export-desktop.js. */
+function copyChartAsImageDesktop(){
+  if(!window.USTExport) return copyChartAsImage();
+  const size = USTExport.DESKTOP.tile;
+  return USTExport.withDesktopLayout(
+    {width: size.width, height: size.height,
+     relayout(){ if(typeof renderChart === 'function') renderChart(); }},
+    copyChartAsImage);
+}
 
 /* ════════════════════════════════════
    INFO MODAL
@@ -1904,9 +1504,27 @@ document.getElementById('opt-image').addEventListener('click', () => {
 
   let lastSent = 0;
   function suggestHeight(){
+    /* Reserve a clear band at the bottom for the info/download/share buttons
+       and their blurred backdrop, so they never sit on top of the legend or
+       the last axis label. Runs standalone too — the collision is identical
+       either way — and the reserved pixels are added back to the height we
+       ask the embedder for, so clearing the buttons costs the plot nothing. */
+    const band = window.USTLayout ? USTLayout.applyFooterBand(wrap) : 0;
     if(window.parent === window) return;
+    /* Staged off-screen at desktop size for an image export (USTExport): the
+       height that box asks for is not the height this viewport wants, and
+       the card is about to move back. Reporting it would resize the embedding
+       iframe to a card that is no longer there. */
+    if(window.USTExport && USTExport.isExporting()) return;
     const w = wrap.clientWidth;
     if(!w) return;
+    /* The band is reserved inside the card, not added on top of it. Adding
+       it kept the plot exactly the same size but made the card taller by
+       the same amount, which simply moved the collision out and left a
+       dead strip between the last label and the buttons. Keeping the
+       height as the aspect ratio dictates means the plot gives up those
+       pixels instead, and the buttons sit directly under the content. */
+    void band;
     const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)));
     if(h === lastSent) return;        // avoid a resize<->postMessage feedback loop
     lastSent = h;
@@ -1923,6 +1541,14 @@ document.getElementById('opt-image').addEventListener('click', () => {
   } else {
     window.addEventListener('resize', onResize);
   }
+  /* Re-measure once the chart has actually drawn: the first call runs
+     before the CSV has loaded, when there is no axis label or legend to
+     collide with the buttons yet. */
+  if(window.USTLayout && USTLayout.watch) USTLayout.watch(wrap, suggestHeight);
+  /* Reserving the band resizes the plot pane but not the card, so the
+     ResizeObserver above never fires and the chart would keep the size it
+     was first drawn at, scaled down by its own viewBox. Redraw it. */
+  if(window.USTLayout && USTLayout.observeAnchor) USTLayout.observeAnchor(wrap, onResize);
   suggestHeight();
 })();
 </script>

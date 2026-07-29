@@ -1,0 +1,456 @@
+/* ════════════════════════════════════════════════════════════════════
+   responsive.css — every breakpoint on the site, in one file.
+
+   Loaded LAST on all 14 pages (after chart-base.css / <page>.css / site.css),
+   so plain single-class selectors here override the desktop rules without
+   needing !important or inflated specificity.
+
+   Why one file rather than a block per stylesheet: the twelve chart pages are
+   six widgets × two languages, and the widgets share their class vocabulary
+   (.chart-header, .chart-controls, .sort-custom, .kiel-logo). Keeping the
+   breakpoints together means a layout tweak is one edit, not fourteen.
+
+   Breakpoints
+     900px — landing page: nav collapses (the grid collapse already lives in
+             site.css, which had 900px rules from the start)
+     560px — chart widgets: the width a widget actually gets once the landing
+             page's .viz-top-row is single-column on a phone, and roughly
+             where the header's reserved logo gutter starts squeezing the
+             title into four or five lines.
+════════════════════════════════════════════════════════════════════ */
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LANDING PAGE
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+  /* The nav links were only hidden below 600px, which left the 600–900px
+     band overflowing: links + search field + language toggle are wider than
+     the viewport there. Hide the links across the whole narrow range (there
+     is no drawer to fall back to at either width) and let the search field
+     shrink instead of forcing the row wider. */
+  .nav-links { display: none; }
+
+  .nav-right { gap: 0.9rem; min-width: 0; }
+  .nav-search { flex-shrink: 1; min-width: 0; }
+  .nav-search input { min-width: 0; width: 100%; }
+}
+
+@media (max-width: 600px) {
+  /* Below this the search field costs more than it earns — the language
+     toggle and the logo need the row. */
+  .nav-search { display: none; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   CHART WIDGETS
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Every selector in this block is qualified with html:not(.exporting-desktop).
+   The query asks about the viewport, but what these rules are really about is
+   how wide the CARD is — the two only agree because a widget normally fills
+   its iframe. "Copy chart as image" breaks that: USTExport stages the card in
+   an off-screen 631px (or 1288px) box so the export is the desktop chart
+   whatever device it was taken on (see ../export-desktop.js), and a phone
+   viewport would otherwise keep pressing phone rules onto that box — a 30px
+   logo and a wrapped controls row in an image meant to look like the site at
+   desktop width. The class is set only for the moment of the capture. */
+@media (max-width: 560px) {
+
+  /* ── header ──────────────────────────────────────────────────────
+     .chart-header reserves 160–185px on the right for the absolutely
+     positioned Kiel logo. At phone width that gutter is nearly half the
+     card, so titles wrap to four or five lines and push the plot area
+     down. Shrink the logo and reclaim most of the gutter. */
+  html:not(.exporting-desktop) .chart-header {
+    padding-right: 104px;
+    padding-left: 0.85rem;
+    min-height: 64px;
+  }
+  html:not(.exporting-desktop) .kiel-logo { right: 10px; }
+  html:not(.exporting-desktop) .kiel-logo img { height: 30px; }
+  html:not(.exporting-desktop) .chart-title { font-size: 1.1rem; line-height: 1.2; }
+
+  /* ── controls bar ────────────────────────────────────────────────
+     A single non-wrapping flex row: the label plus a 215px dropdown
+     overshoots a ~358px card. Let it wrap, and let the dropdown take the
+     full width of whatever line it lands on. */
+  html:not(.exporting-desktop) .chart-controls {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+  }
+
+  /* Scoped to .chart-controls on purpose: the data explorer's map overlay
+     (.line-controls) holds a .sort-custom too, but there it floats over the
+     map alongside the map/globe toggle, and stretching it to 100% pushes
+     that toggle off-screen. */
+  html:not(.exporting-desktop) .chart-controls .sort-custom {
+    width: 100%;
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+  html:not(.exporting-desktop) .chart-controls .sort-custom-btn { width: 100%; }
+
+  /* The map overlay row keeps its intrinsic widths, but is allowed to wrap
+     so the metric dropdown and the map/globe toggle stack instead of
+     overflowing the card. */
+  html:not(.exporting-desktop) .line-controls {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+  }
+  html:not(.exporting-desktop) .view-toggle-wrap { margin-left: 0; }
+
+  /* ── legend vs. action buttons ───────────────────────────────────
+     The by-donor cards keep their legend inside .chart-footer, on the same
+     flex line as the info/download/share buttons and right-aligned with
+     them. Once the legend is wider than the space left over it runs off the
+     left edge of the card and gets clipped. Let the footer wrap and pull the
+     legend onto its own line above the buttons.
+
+     The .line-legend on the other cards is a normal flow element rather than
+     a footer child; USTLayout.applyFooterBand() in assets/chart-layout.js
+     lifts that one clear of the buttons at runtime, since how far it has to
+     move depends on how many series are switched on. */
+  html:not(.exporting-desktop) .chart-footer {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 0.35rem;
+  }
+  html:not(.exporting-desktop) .bar-legend {
+    order: -1;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    white-space: normal;
+  }
+
+  /* ── popovers ────────────────────────────────────────────────────
+     The min-width floors (190px on the dropdowns, 210px on the share menu)
+     are fine on desktop but can exceed the card at phone width. Drop the
+     floor and cap against the viewport instead. */
+  /* Options are nowrap and the menu was pinned to the button's width, so the
+     long ones ("Continental Europe and EU Institutions", "Multiple Launch
+     Rocket Systems") were cut mid-word. Let the menu grow to fit its content,
+     capped short of the card edge so it never becomes a full-width sheet, and
+     let anything still too long wrap onto a second line. */
+  html:not(.exporting-desktop) .sort-custom-dropdown {
+    min-width: 100%;
+    width: max-content;
+    max-width: calc(100vw - 2.2rem);
+  }
+  html:not(.exporting-desktop) .sort-custom-option {
+    white-space: normal;
+    line-height: 1.3;
+  }
+  html:not(.exporting-desktop) .share-dropdown {
+    min-width: 0;
+    width: max-content;
+    max-width: calc(100vw - 1.4rem);
+  }
+  html:not(.exporting-desktop) #bar-hover-popup,
+  html:not(.exporting-desktop) #chart-tooltip {
+    min-width: 0;
+    max-width: calc(100vw - 1.4rem);
+  }
+
+  /* ── lift the action buttons off the bottom edge ──────────────────
+     Scoped by each card's own selector control (#region-custom on the region
+     ranking, #cat-custom on the by-category timeline), since the footer
+     markup is identical on all six widgets and only these two want the extra
+     clearance. The footer is absolutely positioned at bottom:0, so its bottom
+     padding is what sets the distance from the card edge. */
+  html:not(.exporting-desktop) #explorer-wrap:has(#region-custom) .chart-footer,
+  html:not(.exporting-desktop) #explorer-wrap:has(#cat-custom) .chart-footer {
+    padding-bottom: 1rem;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   DATA EXPLORER — MOBILE LAYOUT
+
+   Keyed off html.mobile rather than a media query. The explorer is a fixed
+   1155×730 design that is normally CSS-transform-scaled to whatever width it
+   is given, so a media query on the viewport would fight the transform
+   instead of replacing it. setupResponsiveScale() in the page adds .mobile
+   below 700px and drops the transform; everything here then lays the widget
+   out in normal flow at its real type size.
+
+   Sizes are deliberately the same ones the other chart cards use at ≤560px
+   (1.1rem title, 30px logo, 104px header gutter) so a phone user scrolling
+   the landing page sees one consistent set of cards rather than the explorer
+   rendering at a third of everything else's size.
+   ═══════════════════════════════════════════════════════════════════ */
+
+html.mobile, html.mobile body { height: auto; }
+
+html.mobile .explorer-scale-container {
+  max-width: none;
+  height: auto;
+  margin: 0;
+}
+
+/* The card: no longer a fixed box scaled to fit, but a full-width column
+   that is exactly as tall as its contents. */
+html.mobile .explorer-wrap {
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  flex-direction: column;
+}
+
+/* ── donor selection ─────────────────────────────────────────────────
+   On a phone the 200px sidebar collapses to a single disclosure bar that
+   matches the "Select donors" control the other chart cards already use.
+
+   Everything else the sidebar carried is dropped at this size: the widget's
+   own "Ukraine Support Tracker / Data Explorer" title (the card header right
+   below it already names the chart), the "Sort by" row, and the Select
+   all / Clear all pair. On a 390px screen those cost four rows of chrome
+   before any data appears. */
+html.mobile .left-panel {
+  width: 100%;
+  border-right: none;
+  border-bottom: 1px solid #ddd6c8;
+  overflow: visible;
+}
+/* Injected by the page for phone use; never shown at any other size. */
+.ust-donor-toggle { display: none; }
+
+html.mobile .left-header,
+html.mobile .left-sort { display: none; }
+
+/* Select all / Clear all belong to the list, so they appear with it rather
+   than sitting on the card taking a row of their own while it is closed. */
+html.mobile .left-clear { display: none; }
+html.mobile .left-panel.open .left-clear { display: flex; }
+
+html.mobile .ust-donor-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.62rem 0.85rem;
+  background: #f6f1e7;
+  border: none;
+  color: var(--black);
+  font-family: var(--font);
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+html.mobile .ust-donor-toggle svg { flex-shrink: 0; transition: transform 0.15s; }
+html.mobile .left-panel.open .ust-donor-toggle svg { transform: rotate(180deg); }
+
+html.mobile .left-list {
+  flex: none;
+  display: none;
+  max-height: 32vh;
+  overflow-y: auto;
+  border-top: 1px solid #ddd6c8;
+}
+html.mobile .left-panel.open .left-list { display: block; }
+
+/* ── header ──────────────────────────────────────────────────────── */
+html.mobile .chart-header {
+  padding: 0.6rem 0.85rem;
+  padding-right: 104px;
+  min-height: 0;
+}
+html.mobile .chart-title { font-size: 1.1rem; line-height: 1.2; }
+html.mobile .chart-subtitle { font-size: 0.78rem; }
+html.mobile .kiel-logo { right: 10px; }
+html.mobile .kiel-logo img { height: 30px; }
+
+/* ── view tabs ───────────────────────────────────────────────────── */
+html.mobile .tab-bar {
+  padding: 0 0.6rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+html.mobile .tab-bar::-webkit-scrollbar { display: none; }
+html.mobile .tab-btn {
+  padding: 0.55rem 0.7rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* ── panels ──────────────────────────────────────────────────────────
+   Each view sized explicitly: with the card's height now driven by content,
+   the flex:1 the panels relied on has nothing to divide up. The vw units
+   resolve against the iframe, so the chart keeps a sane shape at any phone
+   width, with floors and ceilings so it is neither a sliver nor a screenful. */
+html.mobile .panel { flex: none; }
+
+/* The map draws into a 960×420 viewBox, so it only ever fills width × 0.4375
+   of whatever box it is given — 43.75vw is the projection's own aspect. The
+   box is given 25% more than that so the world isn't wedged against the tab
+   bar and the colour legend; the SVG letterboxes inside it (xMidYMid meet)
+   and MAP_MOBILE_ZOOM re-centres the drawn world inside the viewBox, so the
+   map sits dead centre of the taller box on both axes. */
+html.mobile .map-svg-wrap,
+html.mobile #globe-wrap.active {
+  flex: none;          /* else flex:1 shrinks it back below the stated height */
+  height: 54.6875vw;   /* 43.75vw + 25% */
+  min-height: 175px;
+  max-height: 400px;
+}
+/* The letterbox bands above and below the SVG are the wrap's own background,
+   so it has to match the beige the map paints inside the SVG (#map-bg) —
+   otherwise the two shades meet in a visible seam across the panel. */
+html.mobile .map-svg-wrap { background: #f6f2e8; }
+
+/* ── map colour legend ───────────────────────────────────────────────
+   Sized for a 1155px card; on a phone the swatch and bar are chunky next to
+   6 tick labels. #legend-canvas gets its 9px from updateLegend() instead —
+   the inline height in the markup outranks anything written here. */
+html.mobile .map-legend {
+  gap: 0.4rem;
+  padding: 0.25rem 0.85rem 0.35rem;
+  font-size: 0.62rem;
+}
+html.mobile .legend-nodata-swatch { width: 22px; height: 9px; }
+html.mobile .line-chart-wrap {
+  height: 64vw;
+  min-height: 230px;
+  max-height: 360px;
+  /* Clears the metric dropdown, which floats over the top of this panel,
+     plus the "€ billion" caption the chart draws just under it. */
+  padding-top: 3.3rem;
+}
+/* flex:none so the explicit height wins: the pane's base rule is flex:1,
+   which inside a content-height column resolves to "as tall as the bars"
+   and therefore never scrolls. With a real height it scrolls again. */
+html.mobile .bar-chart-wrap {
+  flex: none;
+  height: 68vw;
+  min-height: 260px;
+  max-height: 420px;
+  overflow-y: auto;
+  /* Narrower side gutters than desktop's 1.1rem: on a phone that padding is a
+     visible share of the canvas, and renderBar sizes the SVG to what's left. */
+  padding: 0 0.5rem;
+}
+html.mobile #panel-bar > div { flex: none; }
+
+/* renderBar reserves the full height of this floating row as margin-top on the
+   scroll box, so its padding is dead space above the first bar. Tighter on a
+   phone; the dropdown button keeps its own inline padding either way. */
+html.mobile #panel-bar .line-controls { padding: 0.4rem 0.55rem 0.3rem; }
+
+/* On desktop the series legend is a translucent chip floating over the
+   bottom-right of the bar list, which works because the longest bars are at
+   the top. On a phone it sits on top of the shorter bars and they read as
+   half-erased. Put it in the flow underneath the list, fully opaque.
+   position/inset/background are inline attributes on the element, so they
+   need !important to be overridden from a stylesheet. */
+html.mobile #bar-legend {
+  position: static !important;
+  background: #f6f1e7 !important;
+  border-top: 1px solid #ddd6c8;
+  border-radius: 0 !important;
+  padding: 0.5rem 0.85rem !important;
+  font-size: 0.78rem !important;
+  gap: 0.9rem !important;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+html.mobile .tbl-scroll {
+  flex: none;
+  max-height: 51.6vh;  /* 43vh + 20%, so a phone shows ~a fifth more rows */
+  overflow: auto;
+}
+
+/* The orange fill marking selected donors is a desktop affordance: on a phone
+   the donor list is collapsed behind the disclosure bar, so the banding reads
+   as arbitrary striping rather than as "these are your picks". Rows keep the
+   plain card background instead. */
+html.mobile .data-table tr.highlighted td { background: transparent; }
+/* data_explorer.css styles this scroller's bar with `width` only, which the
+   vertical bar picks up and the horizontal one ignores — so once the table
+   scrolls sideways on a phone it got the browser default: a thick bar on a
+   white track, with a white square in the corner where the two bars meet.
+   Same treatment for both axes, plus the track and that corner. */
+/* ── hover popup ─────────────────────────────────────────────────────
+   TT_LAYOUT.box.width is written to the element as an inline style, so the
+   popup is a fixed 280px box — wider than the card at 320px and all but equal
+   to it at 390px. positionTooltip() clamps it inside the card, but a box that
+   is itself wider than the card can only ever be clamped to "overflowing from
+   the left margin instead of the right". Cap the width so there is something
+   to clamp: max-width beats an inline width without needing !important, and
+   border-box keeps the 0.9rem side padding inside that cap. */
+html.mobile #map-tooltip {
+  max-width: calc(100vw - 1.6rem);
+  box-sizing: border-box;
+}
+
+html.mobile .tbl-scroll { scrollbar-width: thin; scrollbar-color: #ddd #f6f1e7; }
+html.mobile .tbl-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+html.mobile .tbl-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+html.mobile .tbl-scroll::-webkit-scrollbar-track,
+html.mobile .tbl-scroll::-webkit-scrollbar-corner { background: #f6f1e7; }
+
+/* ── map colour legend ───────────────────────────────────────────────
+   Eleven evenly-spaced ticks run together into "€0€21B€41B…" once the bar is
+   phone-width. Dropping every second one leaves six, still evenly spaced and
+   still aligned with the gradient beneath them. */
+html.mobile .legend-ticks { font-size: 0.68rem; }
+html.mobile .legend-ticks span:nth-child(even) { display: none; }
+html.mobile .map-legend { padding-left: 0.85rem; padding-right: 0.85rem; }
+
+/* ── timeline + footer ───────────────────────────────────────────── */
+html.mobile .timeline-bar {
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
+  padding: 0.45rem 0.85rem;
+}
+/* Without this the browser treats a drag starting on a handle as a page
+   scroll and never delivers the pointermove events the range slider needs.
+   Bigger hit areas too — the desktop handles are smaller than a fingertip. */
+html.mobile #tl-thumb,
+html.mobile #tl-thumb-left {
+  touch-action: none;
+  /* The translate(-50%,-50%) is what centres a thumb on its `left` position and
+     on the track — repeating it here is required, since a transform declaration
+     replaces the base one wholesale rather than adding to it. */
+  transform: translate(-50%,-50%) scale(1.2);   /* bigger target without colliding with the end labels */
+}
+html.mobile #tl-track { touch-action: none; }
+html.mobile .chart-footer {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+}
+/* The source and methodology notes run to five lines at phone width and push
+   the card well past a screenful. The info button in the same row carries the
+   same text, so drop the notes and keep the buttons. */
+html.mobile .chart-footer-left { display: none; }
+
+/* Fullscreen has nothing to offer a phone — the card already spans the whole
+   screen width, and the fullscreen path uses a CSS zoom tuned for a desktop
+   window. Export, info and share stay. */
+html.mobile #fullscreen-btn { display: none; }
+
+/* The globe is a drag-to-rotate, pinch-to-zoom projection that competes with
+   the page's own scrolling on a touch screen, and at phone width it shows
+   less of the world than the flat map. Map only. */
+html.mobile .view-toggle-wrap { display: none; }
+
+/* ── popovers must never be clipped ──────────────────────────────────
+   The card and its panels are overflow:hidden so the map, the bar list and
+   the rounded corners stay inside the frame. At desktop size the dropdowns
+   open well within those bounds; at phone size the share menu (which opens
+   upward from the footer) and the metric selectors (which open downward from
+   the last row of a panel) run past the edge and get cut in half.
+
+   The inner scroll containers keep their own overflow, so the map and the
+   bar list are still clipped — only the popover layer is let out. */
+html.mobile .explorer-wrap,
+html.mobile .right-panel,
+html.mobile .panel { overflow: visible; }

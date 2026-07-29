@@ -4,790 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ukraine Support Tracker – Data Explorer</title>
-  <style>
-    :root {
-      --font: Arial, sans-serif;
-      --font-serif: Arial, sans-serif;
-      --black: #1a1a1a;
-      --mid: #6b6b6b;
-      --light: #e8e8e8;
-      --border: #d0d0d0;
-      --bg: #f6f1e7;
-      --blue: #3a6dc5;
-      --blue-dark: #1a3e8a;
-      --tab-active: #3a6dc5;
-      --mil: #3a5da8;
-      --fin: #6a9bd8;
-      --hum: #a8c4e8;
-
-      /* ── DATA VIEW: left/right cell spacing ──────────────────
-         Edit --tbl-pad-x-normal for windowed mode and
-         --tbl-pad-x-fullscreen for fullscreen mode independently.
-         (See .explorer-wrap:fullscreen override below.) */
-      --tbl-pad-x-normal: 0.85rem;
-      --tbl-pad-x-fullscreen: 0.85rem;
-      --tbl-pad-x: var(--tbl-pad-x-normal);
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { font-family: var(--font); font-size: 14px; background: #f6f1e7; color: var(--black); line-height: 1.5; margin: 0; padding: 0; }
-    a { color: inherit; text-decoration: none; }
-
-    /* ── SCALE CONTAINER ───────────────────────────────────────
-       Reserves exactly as much vertical space as the scaled-down
-       explorer needs, so the page doesn't leave a gap or clip it. */
-    .explorer-scale-container {
-      width: 100%;
-      max-width: 1288px;
-      margin: 0 auto;
-      overflow: hidden;
-      /* Safety: whatever shows through the rounded corner cut-outs is site beige. */
-      background: #f6f1e7;
-    }
-
-    /* ── OUTER WRAPPER ───────────────────────────────────────
-       Fixed pixel size always — never reflows internally. JS scales
-       this whole box up or down (transform: scale) to match the
-       available width, exactly like a raster image would resize,
-       instead of letting its contents reflow/wrap. */
-    .explorer-wrap {
-      display: flex;
-      width: 1155px;
-      height: 730px;
-      border: 1px solid #ddd6c8;
-      border-radius: 6px;
-      overflow: hidden;
-      background: #f6f1e7;
-      /* No drop shadow here: the card fills the whole iframe viewport, so the
-         shadow had nowhere to fall and only smudged grey into the rounded
-         corner cut-outs. The shadow now lives on the <iframe> in en_index.html. */
-      transform-origin: top left;
-      outline: none;
-    }
-
-    /* ── FLUID (STANDALONE) MODE ──────────────────────────────
-       Only when the page is opened directly in its own window/tab
-       (html.fluid, set below — never inside the index page's iframe).
-       Embedded, the explorer keeps its fixed 1155×730 aspect and is
-       uniformly scaled to the iframe width, exactly as before.
-
-       Standalone, the widget instead fills the whole window in BOTH
-       axes, like every other chart page: the horizontal scale still
-       comes from the width (so text/geometry never distort), while
-       .explorer-wrap's own height is set in JS to whatever, once
-       scaled, exactly covers the window height. The internal flex
-       layout then reflows vertically (map/globe/line/bar/table panels
-       are all flex:1), so no letterboxing above or below. */
-    html.fluid, html.fluid body { height: 100%; }
-    html.fluid .explorer-scale-container {
-      max-width: none;
-      height: 100%;
-      margin: 0;
-    }
-
-    /* ── LEFT PANEL ─────────────────────────────────────────── */
-    .left-panel {
-      width: 200px;
-      flex-shrink: 0;
-      border-right: 1px solid #ddd6c8;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      background: #f6f1e7;
-    }
-    .left-header {
-      padding: 0.7rem 0.9rem 0.6rem;
-      border-bottom: 1px solid #ddd6c8;
-      background: #f6f1e7;
-      height: 90px;
-      box-sizing: border-box;
-      flex-shrink: 0;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    .left-header h2 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #174abb;
-      margin-bottom: 0;
-      line-height: 1.2;
-    }
-    .left-header p {
-      font-size: 0.8rem;
-      font-weight: 400;
-      color: var(--black);
-      line-height: 1.5;
-    }
-
-    /* search box */
-    .left-search {
-      padding: 0.6rem 0.9rem 0.5rem;
-      border-bottom: 1px solid #ddd6c8;
-      background: #f6f1e7;
-    }
-    .left-search-box {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      padding: 0.3rem 0.5rem;
-      background: #f6f1e7;
-    }
-    .left-search-box svg { width: 12px; height: 12px; color: #aaa; flex-shrink: 0; }
-    .left-search-box input {
-      border: none; background: transparent;
-      font-family: var(--font); font-size: 0.75rem; color: var(--black);
-      outline: none; width: 100%;
-    }
-    .left-search-box input::placeholder { color: #bbb; }
-
-    /* sort row */
-    .left-sort {
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-      padding: 0.4rem 0.7rem;
-      border-bottom: 1px solid #ddd6c8;
-      font-size: 0.85rem;
-      color: var(--mid);
-      background: #f6f1e7;
-    }
-    .left-sort label { white-space: nowrap; }
-    .sort-custom {
-      position: relative;
-      flex: 1;
-    }
-    .sort-custom-btn {
-      width: 100%;
-      display: flex; align-items: center; justify-content: space-between; gap: 0.3rem;
-      font-family: var(--font); font-size: 0.85rem;
-      border: 1px solid var(--border); border-radius: 3px;
-      padding: 0 0.4rem 0 0.45rem;
-      height: 26px;
-      background: #f6f1e7; color: var(--black);
-      cursor: pointer; white-space: nowrap;
-      transition: background 0.1s;
-    }
-    .sort-custom-btn:hover { background: #ede8de; }
-    .sort-custom-btn svg { flex-shrink: 0; opacity: 0.5; }
-    .sort-custom-dropdown {
-      display: none;
-      position: absolute;
-      top: calc(100% + 3px); left: 0;
-      min-width: 100%;
-      background: #f6f1e7;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      z-index: 100;
-      overflow: hidden;
-    }
-    .sort-custom-dropdown.open { display: block; }
-    .sort-custom-option {
-      display: flex; align-items: center; gap: 0.4rem;
-      padding: 0.3rem 0.6rem;
-      font-family: var(--font); font-size: 0.82rem;
-      color: var(--black); cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.1s;
-    }
-    .sort-custom-option:hover { background: #ede8de; }
-    .sort-custom-option.active { font-weight: 600; background: #d6e4f5; }
-    .sort-dir-btn {
-      width: 26px; height: 26px; border-radius: 3px; border: 1px solid var(--border);
-      background: #f6f1e7; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      font-size: 0.85rem; color: var(--mid); flex-shrink: 0;
-    }
-    .sort-dir-btn:hover { background: var(--light); }
-
-    /* country list */
-    .left-list {
-      flex: 1;
-      overflow-y: auto;
-      background: #f6f1e7;
-    }
-    .country-item {
-      display: flex;
-      align-items: center;
-      gap: 0.45rem;
-      padding: 0.35rem 0.9rem;
-      font-size: 0.87rem;
-      cursor: pointer;
-      transition: background 0.08s;
-    }
-    .country-item:hover { background: #ede8de; }
-    .country-item.selected {
-      font-weight: 500;
-      color: #ff6b00;
-    }
-    .country-item input[type="checkbox"] {
-      appearance: none; -webkit-appearance: none;
-      width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
-      border: 1.5px solid #b0a898; border-radius: 2px;
-      background: #f6f1e7;
-      transition: border-color 0.1s;
-    }
-    .country-item input[type="checkbox"]:checked {
-      border-color: #ff6b00;
-      background: #ff6b00;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13'%3E%3Cpath d='M2.5 6.5l3 3 5-5' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
-      background-size: 100% 100%;
-    }
-    .country-item span { line-height: 1.3; }
-    .aggregate-divider {
-      height: 1px;
-      background-image: repeating-linear-gradient(to right, #b0a898 0, #b0a898 1.5px, transparent 1.5px, transparent 5px);
-      margin: 0.3rem 0.9rem 0.35rem;
-    }
-    .aggregate-toggle .agg-caret {
-      flex-shrink: 0;
-      opacity: 0.55;
-      transition: transform 0.15s;
-    }
-    .aggregate-toggle.open .agg-caret { transform: rotate(180deg); }
-
-    /* clear button */
-    .left-clear {
-      border-top: 1px solid #ddd6c8;
-      background: #f6f1e7;
-      padding: 0.5rem 0.9rem;
-      font-size: 0.9rem;
-      display: flex;
-      justify-content: space-between;
-    }
-    .left-clear span {
-      color: var(--blue);
-      cursor: pointer;
-      font-size: 0.9rem;
-      line-height: 1;
-    }
-    .left-clear span:hover { text-decoration: underline; }
-
-    /* ── RIGHT PANEL ─────────────────────────────────────────── */
-    .right-panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      min-width: 0;
-      background: #f6f1e7;
-    }
-
-    /* metric selector bar (aligns with left-header) */
-    .map-metric-bar {
-      padding: 0.55rem 1.1rem 0.45rem;
-      border-bottom: 1px solid #ddd6c8;
-      position: relative;
-      flex-shrink: 0;
-      background: #f6f1e7;
-      display: flex;
-      align-items: center;
-      gap: 0;
-    }
-    .map-metric-label {
-      font-size: 0.7rem;
-      color: var(--mid);
-      margin-right: 0.55rem;
-      white-space: nowrap;
-      font-weight: 500;
-    }
-    .map-metric-toggle {
-      display: flex;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-    .map-metric-toggle button {
-      padding: 0.22rem 0.7rem;
-      font-family: var(--font);
-      font-size: 0.72rem;
-      background: #f6f1e7;
-      color: var(--mid);
-      border: none;
-      cursor: pointer;
-      border-right: 1px solid var(--border);
-      transition: background 0.1s, color 0.1s;
-      white-space: nowrap;
-    }
-    .map-metric-toggle button:last-child { border-right: none; }
-    .map-metric-toggle button.active {
-      background: var(--black);
-      color: #fff;
-      font-weight: 500;
-    }
-    .map-metric-toggle button:not(.active):hover { background: #ede8de; color: var(--black); }
-    /* Kiel logo top-right of chart header */
-    .kiel-logo {
-      position: absolute;
-      top: 17px; right: 17px; bottom: 17px;
-      line-height: 0;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-    }
-    .kiel-logo img { height: 56px; width: auto; display: block; }
-
-    /* chart title area */
-    .chart-header {
-      padding: 0.45rem 1.1rem 0.6rem;
-      padding-right: 160px;
-      border-bottom: 1px solid #ddd6c8;
-      position: relative;
-      flex-shrink: 0;
-      background: #f6f1e7;
-      min-height: 90px;
-      box-sizing: border-box;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-    }
-    .chart-title {
-      font-family: var(--font-serif);
-      font-size: 1.78rem;
-      font-weight: 700;
-      line-height: 1.25;
-      color: #174abb;
-      margin-bottom: 0rem;
-    }
-    .chart-subtitle {
-      font-size: 0.9rem;
-      color: var(--black);
-      line-height: 1.5;
-      max-width: 780px;
-    }
-
-    /* ── TAB BAR ──────────────────────────────────────────── */
-    .tab-bar {
-      display: flex;
-      align-items: center;
-      padding: 0 1.1rem;
-      border-bottom: 1px solid #ddd6c8;
-      gap: 0;
-      flex-shrink: 0;
-      background: #f6f1e7;
-    }
-    .tab-btn {
-      display: flex; align-items: center; gap: 0.4rem;
-      padding: 0.65rem 1rem;
-      font-size: 0.92rem; font-family: var(--font); font-weight: 400;
-      color: var(--mid);
-      background: none; border: none; border-bottom: 2.5px solid transparent;
-      cursor: pointer; white-space: nowrap;
-      margin-bottom: -1px;
-      transition: color 0.1s;
-    }
-    .tab-btn:hover { color: var(--black); }
-    .tab-btn.active { color: var(--black); font-weight: 500; border-bottom-color: var(--tab-active); }
-    .tab-btn svg { width: 16px; height: 16px; }
-
-
-
-    /* ── PANEL COMMON ─────────────────────────────────────── */
-    .panel { display: none; flex: 1; flex-direction: column; overflow: hidden; min-height: 0; background: #f6f1e7; }
-    .panel.active { display: flex; }
-
-    /* ── TABLE PANEL ──────────────────────────────────────── */
-    .tbl-unit-label {
-      padding: 0.35rem 1.1rem 0.2rem;
-      font-size: 0.72rem;
-      color: var(--mid);
-      border-bottom: 1px solid #ddd6c8;
-      flex-shrink: 0;
-    }
-    .tbl-unit-label strong { color: var(--black); }
-    .tbl-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
-    .data-table {
-      width: 100%; border-collapse: collapse;
-      font-size: 0.78rem; font-family: var(--font);
-    }
-    .data-table thead { position: sticky; top: 0; z-index: 5; background: #f6f1e7; }
-    .data-table th {
-      padding: 0.45rem var(--tbl-pad-x);
-      text-align: left; font-weight: 500; font-size: 0.72rem; color: var(--mid);
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap; cursor: pointer; user-select: none;
-    }
-    .data-table th:hover { color: var(--black); }
-    .data-table th.num { text-align: right; }
-    .sort-arrow { margin-left: 2px; opacity: 0.5; font-size: 0.62rem; }
-    .data-table td {
-      padding: 0.38rem var(--tbl-pad-x);
-      border-bottom: 1px solid #ddd6c8;
-      color: var(--black);
-    }
-    .data-table tr:last-child td { border-bottom: none; }
-    .data-table tr:hover td { background: #ede8de; }
-    .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    .data-table tr.highlighted td { background: #f7cfae; }
-
-    /* ── MAP PANEL ────────────────────────────────────────── */
-    #panel-map { background: #f6f1e7; position: relative; flex-direction: column; overflow: hidden; min-height: 0; }
-    .map-svg-wrap { flex: 1; min-height: 0; position: relative; overflow: hidden; background: #f6f1e7; }
-    #choropleth-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; background: #f6f2e8; }
-    /* all world countries default cream — JS overrides with data colors */
-    .choro-bg    { fill: url(#hatch); stroke: #9a9590; stroke-width: 0.4px; }
-    .choro-country { stroke: #9a9590; stroke-width: 0.6px; cursor: pointer; transition: opacity .12s; }
-    .choro-country:hover { opacity: 0.78; }
-
-    .globe-country { cursor: pointer; transition: filter .12s; }
-    .globe-country:hover { filter: brightness(0.96); }
-
-    .map-legend {
-      flex-shrink: 0;
-      display: flex; align-items: flex-start; gap: 0.5rem;
-      padding: 0.35rem 1.1rem 0.4rem;
-      font-size: 0.75rem; color: var(--mid);
-      background: #f6f1e7;
-    }
-    .legend-nodata-swatch {
-      width: 30px; height: 13px; flex-shrink: 0; margin-top: 0;
-      background-color: #f6f2e8;
-      background-image: radial-gradient(circle, #d8d3cb 0.5px, transparent 0.5px);
-      background-size: 6px 6px; border: 1px solid #d0ccc4;
-    }
-    #legend-canvas { height: 13px; flex: 1; }
-    .legend-ticks {
-      display: flex; justify-content: space-between;
-      font-size: 0.75rem; color: #777; background: #f6f1e7;
-    }
-
-    /* map tooltip */
-    #map-tooltip {
-      position: fixed; pointer-events: none;
-      background: #f6f1e7; border: 1px solid #ccc; border-radius: 4px;
-      padding: 0.6rem 0.9rem; font-family: var(--font); font-size: 0.8rem;
-      line-height: 1.5; box-shadow: 0 4px 14px rgba(0,0,0,0.13);
-      width: 270px; display: none; z-index: 2000;
-    }
-    #map-tooltip .tt-name { font-weight: 600; font-size: 1.196rem; margin-bottom: 0.0rem; }
-    #map-tooltip .tt-val { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.0rem; line-height: 1.1; }
-
-    /* timeline */
-    .timeline-bar {
-      flex-shrink: 0; display: flex; align-items: center; gap: 0.65rem;
-      padding: 0.45rem 1.1rem; border-top: 1px solid #ddd6c8;
-      font-size: 0.75rem; color: var(--mid);
-    }
-    .play-btn {
-      width: 24px; height: 24px; border-radius: 50%;
-      border: 1.5px solid #999; background: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    }
-    .play-btn:hover { border-color: var(--black); }
-    .play-btn svg { width: 8px; height: 8px; }
-    .tl-track {
-      flex: 1; position: relative; height: 3px; background: #ddd;
-      border-radius: 2px; cursor: pointer;
-    }
-    .tl-fill { position: absolute; left: 0; top: 0; height: 100%; background: #888; border-radius: 2px; pointer-events: none; }
-    .tl-thumb {
-      position: absolute; top: 50%; transform: translate(-50%,-50%);
-      width: 9px; height: 9px; border-radius: 50%;
-      background: #333; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-    }
-    .tl-thumb-left {
-      position: absolute; top: 50%; left: 0; transform: translate(-50%,-50%);
-      width: 9px; height: 9px; border-radius: 50%;
-      background: #333; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-    }
-    .tl-year { font-size: 0.7rem; color: var(--mid); flex-shrink: 0; }
-    .tl-tick-label {
-      position: absolute; top: 5px;
-      transform: translateX(-50%);
-      font-family: Arial, sans-serif; font-size: 0.75rem;
-      color: #999; pointer-events: none; white-space: nowrap;
-    }
-
-    /* ── LINE PANEL ──────────────────────────────────────── */
-    .line-controls {
-      flex-shrink: 0; padding: 0.55rem;
-      background: #f6f2e8;
-      display: flex; align-items: center; gap: 0.5rem;
-      font-size: 0.72rem; color: var(--mid);
-    }
-    .line-controls select {
-      font-family: var(--font); font-size: 0.72rem;
-      border: 1px solid var(--border); border-radius: 3px;
-      padding: 0.22rem 0.45rem; background: #f6f1e7; color: var(--black);
-    }
-    .line-chart-wrap { flex: 1; padding: 3rem 0rem 0.4rem; overflow: hidden; }
-    #line-svg { width: 100%; height: 100%; display: block; overflow: visible; }
-    .line-legend {
-      flex-shrink: 0; display: flex; flex-wrap: wrap;
-      gap: 0.3rem 1.1rem; padding: 0rem 1.1rem 0.55rem;
-      font-size: 0.82rem;
-    }
-    .legend-item { display: flex; align-items: center; gap: 0.3rem; }
-    .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-
-    /* ── BAR PANEL ───────────────────────────────────────── */
-    /* scrollbar-gutter keeps clientWidth identical with and without the scrollbar — renderBar
-       measures the width while the SVG is empty, so a scrollbar appearing afterwards would
-       otherwise leave the SVG a few px too wide and clip the value labels on the right. */
-    .bar-chart-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 1.1rem; scrollbar-gutter: stable; }
-    .bar-chart-wrap::-webkit-scrollbar { width: 5px; }
-    .bar-chart-wrap::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    #bar-svg { display: block; }
-
-    /* ── BOTTOM FOOTER ───────────────────────────────────── */
-    .chart-footer {
-      flex-shrink: 0;
-      padding: 0.5rem 1.1rem;
-      border-top: 1px solid #ddd6c8;
-      font-size: 0.75rem;
-      background: #f6f1e7;
-      color: var(--mid);
-      line-height: 1.6;
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 1rem;
-    }
-    .chart-footer a { text-decoration: underline; text-underline-offset: 2px; }
-    .footer-icons {
-      display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
-    }
-    .footer-icon-btn {
-      width: 30px; height: 30px; border-radius: 3px;
-      border: 1px solid var(--border); background: #f6f1e7;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--mid); transition: background 0.1s;
-    }
-    .footer-icon-btn:hover { background: var(--light); color: var(--black); }
-    .footer-icon-btn svg { width: 14px; height: 14px; }
-
-    /* share dropdown */
-    .share-wrap { position: relative; }
-    .share-dropdown {
-      display: none; position: absolute; right: 0; bottom: 110%;
-      background: #f6f1e7; border: 1px solid var(--border); border-radius: 4px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.13); min-width: 210px; z-index: 500; padding: 0.3rem 0;
-    }
-    .share-dropdown.open { display: block; }
-    .share-dropdown-title { font-size: 0.65rem; font-weight: 600; color: #aaa; padding: 0.4rem 1rem 0.2rem; text-transform: uppercase; letter-spacing: 0.07em; }
-    .share-option {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.45rem 1rem; font-size: 0.76rem; color: #333; cursor: pointer;
-    }
-    .share-option:hover { background: #ede8de; }
-    .share-option svg { width: 15px; height: 15px; opacity: 0.65; flex-shrink: 0; }
-
-    /* fullscreen */
-    .chart-footer-left { flex: 1; }
-    .explorer-wrap:-webkit-full-screen { max-width: 100%; margin: 0; height: 100vh; font-size: 24.25px; zoom: 1.0965375; --tbl-pad-x: var(--tbl-pad-x-fullscreen); }
-    .explorer-wrap:fullscreen { max-width: 100%; margin: 0; height: 100vh; font-size: 24.25px; zoom: 1.0965375; --tbl-pad-x: var(--tbl-pad-x-fullscreen); }
-    .explorer-wrap:-webkit-full-screen .map-svg-wrap { max-height: calc(100vw * 420 / 960); }
-    .explorer-wrap:fullscreen .map-svg-wrap { max-height: calc(100vw * 420 / 960); }
-    .explorer-wrap:-webkit-full-screen #globe-wrap { max-height: calc(100vw * 420 / 960); }
-    .explorer-wrap:fullscreen #globe-wrap { max-height: calc(100vw * 420 / 960); }
-    .explorer-wrap:-webkit-full-screen .line-chart-wrap { padding-left: 4vw; padding-right: 4vw; }
-    .explorer-wrap:fullscreen .line-chart-wrap { padding-left: 4vw; padding-right: 4vw; }
-
-    /* copy toast */
-    #copy-toast {
-      position: fixed; bottom: 1.5rem; right: 1.5rem;
-      background: #222; color: #fff; font-size: 0.76rem;
-      padding: 0.45rem 1rem; border-radius: 4px;
-      opacity: 0; transition: opacity 0.25s; pointer-events: none;
-      z-index: 9999; font-family: var(--font);
-    }
-    #copy-toast.show { opacity: 1; }
-
-    /* ── Download Modal ── */
-    #dl-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.18); z-index: 3000;
-    }
-    #dl-overlay.open { display: block; }
-    #dl-modal {
-      display: none; position: fixed; z-index: 3001;
-      left: 50%; top: 50%; transform: translate(-50%,-50%);
-      background: #f6f1e7; border: 1px solid #ddd6c8;
-      border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-      width: 420px; max-width: calc(100vw - 2rem);
-      padding: 1.1rem 1.3rem 0.9rem;
-      font-family: var(--font);
-    }
-    #dl-modal.open { display: block; }
-    #dl-question {
-      font-size: 1.15rem; font-weight: 700;
-      color: #ff6b00; margin-bottom: 0.85rem;
-      line-height: 1.3;
-    }
-    .dl-option {
-      display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.55rem 0.7rem; border-radius: 4px;
-      cursor: pointer; transition: background 0.1s;
-      border: 1px solid transparent;
-    }
-    .dl-option:hover { background: #ede8de; border-color: #ddd6c8; }
-    .dl-option svg { width: 22px; height: 22px; flex-shrink: 0; }
-    .dl-option-title { font-size: 0.82rem; font-weight: 600; color: var(--black); }
-    .dl-option-sub { font-size: 0.72rem; color: var(--mid); margin-top: 0.1rem; }
-    #dl-close {
-      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
-      width: 30px; height: 30px; border-radius: 50%;
-      border: 1px solid var(--border); background: #f6f1e7;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--mid); transition: background 0.1s;
-    }
-    #dl-close:hover { background: var(--light); color: var(--black); }
-    #dl-close svg { width: 13px; height: 13px; }
-
-    /* ── Info Modal ── */
-    #info-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.32); z-index: 3000;
-    }
-    #info-overlay.open { display: block; }
-    #info-modal {
-      display: none; position: fixed; z-index: 3001;
-      left: 50%; top: 50%; transform: translate(-50%,-50%);
-      background: #f6f1e7; border: 1px solid #ddd6c8;
-      border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
-      width: 500px; max-width: calc(100vw - 3rem);
-      max-height: calc(100vh - 4rem);
-      font-family: var(--font);
-    }
-    #info-modal.open { display: block; }
-    #info-modal-inner {
-      padding: 1rem;
-      max-height: calc(100vh - 4rem);
-      overflow-y: auto;
-    }
-    #info-modal-inner::-webkit-scrollbar { width: 5px; }
-    #info-modal-inner::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-    #info-close {
-      position: absolute; top: 0.9rem; right: 0.9rem; z-index: 1;
-      width: 30px; height: 30px; border-radius: 50%;
-      border: 1px solid var(--border); background: #f6f1e7;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--mid); transition: background 0.1s;
-    }
-    #info-close:hover { background: var(--light); color: var(--black); }
-    #info-close svg { width: 13px; height: 13px; }
-    #info-eyebrow {
-      font-size: 1.32rem; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: #ff6b00;
-      line-height: 1.3; margin-bottom: 1rem; padding-right: 2rem;
-    }
-    #info-body { font-size: 0.86rem; color: #333; line-height: 1.65; }
-    #info-body h4 {
-      font-size: 0.74rem; font-weight: 700; letter-spacing: 0.05em;
-      text-transform: uppercase; color: #194aba;
-      margin: 1.4rem 0 0.5rem;
-    }
-    #info-body h4:first-child { margin-top: 0; }
-    #info-body p { margin: 0 0 0.7rem; }
-    #info-body p:last-child { margin-bottom: 0; }
-    #info-body ul { margin: 0 0 0.7rem; padding-left: 1.2rem; }
-    #info-body li { margin-bottom: 0.3rem; }
-    #info-body .info-tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
-    #info-body .info-tag {
-      display: inline-block; font-size: 0.72rem; font-weight: 600;
-      color: #fff; background: #688fdc;
-      border: 1px solid #688fdc; border-radius: 3px;
-      padding: 0.2rem 0.55rem;
-    }
-    #info-body .info-source {
-      margin-top: 1rem; padding-top: 0.7rem;
-      border-top: 1px solid #ddd6c8;
-      font-size: 0.75rem; color: var(--mid); line-height: 1.6;
-    }
-
-    /* region headers and divider */
-    .region-header {
-      display: flex; align-items: center; gap: 8px;
-      padding: 6px 10px 4px;
-      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
-      text-transform: uppercase; color: #888;
-      cursor: pointer; user-select: none;
-    }
-    .region-header:not(:first-child) { margin-top: 6px; }
-    .region-header input[type="checkbox"] { flex-shrink: 0; cursor: pointer; }
-    .region-divider {
-      height: 1px; background: #ddd6c8;
-      margin: 8px 10px 6px;
-    }
-
-    /* scrollbar styling */
-    .tbl-scroll::-webkit-scrollbar, .left-list::-webkit-scrollbar { width: 5px; }
-    .tbl-scroll::-webkit-scrollbar-thumb, .left-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
-
-    /* ── VIEW TOGGLE (Map / Globe) ───────────────────────── */
-    .view-toggle-wrap {
-      margin-left: auto;
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-    .view-toggle-label {
-      font-size: 0.65rem;
-      color: var(--mid);
-      white-space: nowrap;
-    }
-    .view-toggle {
-      display: flex;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .view-toggle button {
-      padding: 0.24rem 0.72rem;
-      font-family: Arial, sans-serif;
-      font-size: 0.95rem;
-      background: #f6f1e7;
-      color: var(--mid);
-      border: none;
-      border-right: 1px solid var(--border);
-      cursor: pointer;
-      display: flex; align-items: center; gap: 0.25rem;
-      transition: background 0.1s, color 0.1s;
-      white-space: nowrap;
-    }
-    .view-toggle button:last-child { border-right: none; }
-    .view-toggle button.active { background: var(--blue); color: #fff; font-weight: 500; }
-    .view-toggle button:not(.active):hover { background: #ede8de; color: var(--black); }
-    .view-toggle button svg { width: 14px; height: 14px; }
-    #view-btn-globe { padding-left: 0.44rem; padding-right: 0.44rem; }
-
-    /* Globe container */
-    #globe-wrap {
-      display: none;
-      flex: 1;
-      position: relative;
-      background: #f6f2e8;
-      overflow: hidden;
-      cursor: grab;
-      min-height: 0;
-    }
-    #globe-wrap.active { display: flex; align-items: center; justify-content: center; }
-    #globe-wrap.dragging { cursor: grabbing; }
-    #globe-svg { display: block; max-width: 100%; max-height: 100%; }
-
-    /* zoom controls for map and globe */
-    .map-zoom-controls {
-      position: absolute;
-      top: calc(0.55rem + 32px + 0.55rem + 4px); right: 0.55rem;
-      display: flex; flex-direction: column; gap: 2px;
-      z-index: 10;
-    }
-    .map-zoom-btn {
-      width: 24px; height: 24px;
-      border: 1px solid var(--border); border-radius: 3px;
-      background: rgba(246,241,231,0.9); color: var(--mid);
-      font-size: 15px; line-height: 24px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      padding: 0; text-align: center;
-      font-family: Arial, sans-serif;
-      transition: background 0.1s;
-    }
-    .map-zoom-btn:hover { background: #ede8de; color: var(--black); }
-  </style>
+  <link rel="stylesheet" href="../../assets/css/chart-base.css" />
+  <link rel="stylesheet" href="../../assets/css/data_explorer.css" />
+  <link rel="stylesheet" href="../../assets/css/responsive.css" />
   <!-- Flag standalone (top-level) viewing before first paint, so the fluid
        layout above applies from the very first frame instead of flashing the
        fixed-aspect embed layout first. Inside en_index.html's iframe this class
@@ -838,9 +57,9 @@
   <div class="right-panel">
 
     <div class="chart-header">
-      <div class="chart-title" id="chart-title-text">Aid to Ukraine by Donor Country</div>
+      <div class="chart-title" id="chart-title-text">Aid to Ukraine, by Donor</div>
       <div style="margin-top:0.3rem">
-        <div class="chart-subtitle" id="chart-subtitle">Total bilateral government aid allocations to Ukraine (military, financial, and humanitarian) in € billion.</div>
+        <div class="chart-subtitle" id="chart-subtitle">Total bilateral government aid allocations to Ukraine in € billion.</div>
         <div class="chart-subtitle" style="color:var(--mid);margin-top:0.1rem"><span id="year-label">Jan 2022–Apr 2026</span></div>
       </div>
       <div class="kiel-logo">
@@ -1102,6 +321,7 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="../../assets/data-loader.js"></script>
+<script src="../../assets/export-desktop.js"></script>
 <script>
 /* ════════════════════════════════════
    DATA
@@ -1199,6 +419,34 @@ const LINE_CHART_STYLE = {
     endLabelFontSize: '0.98rem',
     timelineBottomGap: '0.45rem',
   },
+  /* Phone layout (html.mobile). The normal block's margins are px values
+     sized for the 953px-wide native canvas: 20px on the left is narrower
+     than a "400.0" y-axis label, and the 40px on the right is nowhere near
+     a "United States" end label. At 953px the overspill is invisible
+     because .line-chart-wrap is wider than the plot; at 390px it clips.
+     Here the left margin fits the widest tick label and the country names
+     are dropped in favour of the legend already sitting under the chart. */
+  mobile: {
+    xAxisFontSize: '0.85rem',
+    yAxisFontSize: '0.85rem',
+    unitLabelFontSize: '0.8rem',
+    padLeft: 44,
+    padRight: 12,
+    padTop: 26,
+    /* The unit caption hangs 30px left of the SVG on desktop, where the
+       card is wider than the plot and nothing clips it. Bring it inside. */
+    unitLabelX: 2,
+    padBottom: 30,
+    legendFontSize: '0.8rem',
+    timelineLabelFontSize: '0.75rem',
+    /* Year ticks are set smaller than the end labels only here: the phone track
+       has to fit five of them (2022…2026) plus the two end labels across ~220px,
+       and at the end-label size the first two run into each other. */
+    timelineTickFontSize: '0.62rem',
+    endLabelFontSize: '0.9rem',
+    endLabels: false,
+    timelineBottomGap: '0.45rem',
+  },
   fullscreen: {
     xAxisFontSize: '0.8rem',
     yAxisFontSize: '0.8rem',
@@ -1216,7 +464,9 @@ const LINE_CHART_STYLE = {
 function currentLineChartStyle(){
   const wrap=document.getElementById('explorer-wrap');
   const isFs = !!document.fullscreenElement && document.fullscreenElement===wrap;
-  return isFs ? LINE_CHART_STYLE.fullscreen : LINE_CHART_STYLE.normal;
+  if(isFs) return LINE_CHART_STYLE.fullscreen;
+  if(document.documentElement.classList.contains('mobile')) return LINE_CHART_STYLE.mobile;
+  return LINE_CHART_STYLE.normal;
 }
 /* Apply the shared-timeline style values (from the normal/fullscreen block):
    - timelineLabelFontSize : the "Jan 2022 / Apr 2026" end labels and the
@@ -1226,10 +476,63 @@ function currentLineChartStyle(){
    Called on setup and on fullscreen toggle. */
 function applyTimelineLabelSize(){
   const st=currentLineChartStyle();
-  document.querySelectorAll('#shared-timeline .tl-year, #shared-timeline .tl-tick-label')
+  document.querySelectorAll('#shared-timeline .tl-year')
     .forEach(el=>{ el.style.fontSize=st.timelineLabelFontSize; });
+  document.querySelectorAll('#shared-timeline .tl-tick-label')
+    .forEach(el=>{ el.style.fontSize=st.timelineTickFontSize||st.timelineLabelFontSize; });
   const bar=document.getElementById('shared-timeline');
   if(bar) bar.style.paddingBottom=st.timelineBottomGap;
+  layoutTimelineTicks();
+}
+/* setupResponsiveScale() lives outside main(), so it cannot see this binding;
+   it re-sizes the timeline labels through the window handle instead. */
+window.__ustApplyTimelineLabelSize = applyTimelineLabelSize;
+
+/* Safety net for the extra first-year tick added on phones: if the track is so
+   narrow that it still runs into the next year, drop it rather than let the two
+   overlap. Needs a laid-out track, so call it after a frame. */
+function fitFirstTimelineTick(){
+  const first=document.getElementById('tl-tick-first');
+  if(!first) return;
+  first.style.visibility='';
+  const rest=[...document.querySelectorAll('#shared-timeline .tl-tick-label')]
+    .filter(el=>el!==first && el.style.display!=='none')
+    .map(el=>el.getBoundingClientRect())
+    .sort((a,b)=>a.left-b.left);
+  if(!rest.length) return;
+  first.style.visibility = first.getBoundingClientRect().right + 3 > rest[0].left ? 'hidden' : '';
+}
+
+/* Position the year ticks inside the timeline track.
+
+   Desktop keeps them at their true positions on the month scale (dataset.pct)
+   and drops the first year, whose label would sit half outside the track and
+   under the left handle.
+
+   Phone spreads all five years (2022…2026) evenly instead. Two things pull
+   them off a regular rhythm on a ~220px track: the first year sits at 0%
+   (it used to be pinned left-aligned, which left a visibly short first gap)
+   and the series ends in April, so the last year's tick stops ~6% short of
+   the right end. Insetting the outer two by half a label width and spreading
+   the rest between them keeps every year inside the track with identical gaps.
+
+   Needs the phone font size to be applied first (it measures label widths),
+   so applyTimelineLabelSize() calls it rather than the other way round. */
+function layoutTimelineTicks(){
+  const ticks=[...document.querySelectorAll('#tl-track .tl-tick-label')];
+  if(!ticks.length) return;
+  const mobile=document.documentElement.classList.contains('mobile');
+  const first=document.getElementById('tl-tick-first');
+  if(first) first.style.display = (mobile && mapYmStartIdx===0) ? '' : 'none';
+  if(!mobile){
+    ticks.forEach(el=>{ el.style.left=el.dataset.pct+'%'; });
+    return;
+  }
+  const half=Math.max(...ticks.map(el=>el.getBoundingClientRect().width))/2;
+  ticks.forEach((el,i)=>{
+    const f=ticks.length>1 ? i/(ticks.length-1) : 0;
+    el.style.left=`calc(${(f*100).toFixed(3)}% + ${(half*(1-2*f)).toFixed(2)}px)`;
+  });
 }
 
 function ymLabel(y,m){ return `${MONTH_NAMES[m-1]} ${y}`; }
@@ -1458,10 +761,49 @@ function syncEuSelection() {
   renderLeftList();
 }
 
+/* ── phone: per-view default selection ───────────────────────────────
+   The desktop default (top four donors) is a compromise that suits the line
+   chart; on a phone each view wants something different. Table, bar and map
+   read as a ranking, so they start with everything selected; the line chart
+   would be an unreadable thicket of 40+ series, so it starts with three.
+
+   Applied once per view, the first time that view is opened on a phone, so a
+   selection the reader makes themselves survives switching tabs and back.
+   Aggregates that a view doesn't support are dropped by syncEuSelection()
+   right after this, as they always were (the map has no EU Institutions). */
+const MOBILE_TAB_DEFAULTS = {
+  table: 'all',
+  bar:   'all',
+  map:   'all',
+  line:  [EU_INSTITUTIONS, 'United States', 'Germany']
+};
+const _mobileTabDefaultsDone = new Set();
+function applyMobileTabDefault(tab){
+  if(!document.documentElement.classList.contains('mobile')) return;
+  if(_mobileTabDefaultsDone.has(tab)) return;
+  _mobileTabDefaultsDone.add(tab);
+  const spec = MOBILE_TAB_DEFAULTS[tab];
+  if(!spec) return;
+  selected.clear();
+  if(spec === 'all'){
+    /* Same set the "Select all" button uses -- every real donor, no
+       aggregates -- plus the EU Institutions aggregate. */
+    COUNTRIES.filter(c => !AGGREGATE_COUNTRIES.includes(c) && c !== EU_INSTITUTIONS_RAW)
+      .forEach(c => selected.add(c));
+    selected.add(EU_INSTITUTIONS);
+  } else {
+    spec.forEach(c => { if(COUNTRIES.includes(c)) selected.add(c); });
+  }
+  /* Show the aggregates group open when its default selection lives in there,
+     so the reader can see what is switched on. */
+  if(selected.has(EU_INSTITUTIONS) && tab !== 'map') window._aggOpen = true;
+}
+
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (activeTab === btn.dataset.tab) return;
     activeTab = btn.dataset.tab;
+    applyMobileTabDefault(activeTab);
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===activeTab));
     document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id==='panel-'+activeTab));
     const tl = document.getElementById('shared-timeline');
@@ -1476,7 +818,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 function renderActiveChart() {
   if (activeTab==='table') {
     const titleText = document.getElementById('chart-title-text');
-    if (titleText) titleText.textContent = 'Aid to Ukraine by Donor Country';
+    if (titleText) titleText.textContent = 'Aid to Ukraine, by Donor';
     const sub = document.getElementById('chart-subtitle');
     if (sub) sub.textContent = 'Total and category-level bilateral aid allocations to Ukraine with donor GDP shares, in € billion.';
     renderTable();
@@ -1501,6 +843,19 @@ function renderActiveChart() {
 window.__ustRelayoutActivePanel = function(){
   if (activeTab === 'line') renderLine();
   else if (activeTab === 'bar') renderBar();
+  else if (activeTab === 'map' && mapViewMode === 'map') {
+    /* Only for the colour-scale legend, not the map itself — the choropleth
+       is an SVG with a viewBox and rescales on its own. #legend-canvas does
+       not: updateLegend() paints its gradient at canvas.width = offsetWidth,
+       and that pixel width becomes the bitmap's intrinsic width. Left over
+       from a narrower layout, its aspect ratio inflates the canvas's
+       automatic minimum height (a 249px-wide bitmap stretched across 972px
+       renders 35px tall instead of 13px), which eats into the map's flex
+       space and shifts the framing. Repainting at the current width is what
+       makes the exported map identical whatever device it came from — and
+       fixes the same squashed legend after an ordinary window resize. */
+    if (mapGeo) updateMapColors();
+  }
   else if (activeTab === 'map' && mapViewMode === 'globe' && globeProjection) {
     /* buildGlobe() rebuilds from scratch, so carry the current rotation over —
        resizing the window shouldn't spin the globe back to its start. */
@@ -1637,12 +992,12 @@ function getUseVal(metric) {
   return v=>v.tot;
 }
 function metricTitle(m) {
-  if(m==='pct') return 'Aid to Ukraine: Share of GDP by Donor Country';
-  if(m==='fin') return 'Financial Aid to Ukraine by Donor Country';
-  if(m==='mil') return 'Military Aid to Ukraine by Donor Country';
-  if(m==='hum') return 'Humanitarian Aid to Ukraine by Donor Country';
-  if(m==='alloc_commit') return 'Allocations and Commitments to Ukraine by Donor Country';
-  return 'Aid to Ukraine by Donor Country';
+  if(m==='pct') return 'Aid to Ukraine: Share of GDP, by Donor';
+  if(m==='fin') return 'Financial Aid to Ukraine, by Donor';
+  if(m==='mil') return 'Military Aid to Ukraine, by Donor';
+  if(m==='hum') return 'Humanitarian Aid to Ukraine, by Donor';
+  if(m==='alloc_commit') return 'Allocations and Commitments to Ukraine, by Donor';
+  return 'Aid to Ukraine, by Donor';
 }
 function metricSubtitle(m) {
   if(m==='pct') return 'Bilateral government aid allocations to Ukraine as a share of donor GDP (%).';
@@ -1650,7 +1005,7 @@ function metricSubtitle(m) {
   if(m==='mil') return 'Bilateral government military aid allocations to Ukraine in € billion.';
   if(m==='hum') return 'Bilateral government humanitarian aid allocations to Ukraine in € billion.';
   if(m==='alloc_commit') return 'Bilateral government aid allocations vs. commitments to Ukraine, in € billion.';
-  return 'Total bilateral government aid allocations to Ukraine (military, financial, and humanitarian) in € billion.';
+  return 'Total bilateral government aid allocations to Ukraine in € billion.';
 }
 
 const colorScaleInterp = d3.interpolateRgbBasis(MAP_COLORS);
@@ -1977,9 +1332,18 @@ function positionTooltip(tt, event){
   const s=getWrapScale();
   const cx=(event.clientX-wrapRect.left)/s/z, cy=(event.clientY-wrapRect.top)/s/z;
   const maxW=wrapRect.width/s/z, maxH=wrapRect.height/s/z;
+  const w=r.width/s/z, h=r.height/s/z;
   let l=cx+m, t=cy+m;
-  if(l+r.width/s/z>maxW) l=cx-r.width/s/z-m;
-  if(t+r.height/s/z>maxH) t=cy-r.height/s/z-m;
+  if(l+w>maxW) l=cx-w-m;
+  if(t+h>maxH) t=cy-h-m;
+  /* Flipping to the other side of the cursor is only enough while the popup is
+     comfortably narrower than the card. On a phone it is nearly as wide as the
+     whole widget, so the flipped position starts off the left edge and the box
+     gets clipped. Clamp both axes into the card as the final step — with a
+     popup wider than the card the clamp still pins it to the left margin, and
+     responsive.css caps its width so that can't happen either. */
+  l=Math.max(m, Math.min(l, maxW-w-m));
+  t=Math.max(m, Math.min(t, maxH-h-m));
   tt.style.left=l+'px'; tt.style.top=t+'px';
 }
 
@@ -2007,8 +1371,13 @@ function showMapTT(event,d){
 
 function updateLegend(mx){
   const canvas=document.getElementById('legend-canvas');
+  /* Slimmer bar on a phone, matching the "No data" swatch next to it. The
+     inline height in the markup has to be overwritten here — a stylesheet
+     rule cannot outrank it. */
+  const legendH=document.documentElement.classList.contains('mobile')?9:13;
+  canvas.style.height=legendH+'px';
   canvas.width=canvas.offsetWidth||400;
-  canvas.height=13;
+  canvas.height=legendH;
   const ctx=canvas.getContext('2d');
   for(let i=0;i<200;i++){
     ctx.fillStyle=colorScale((i/200)*mx+0.001,mx);
@@ -2037,19 +1406,27 @@ function setupTimeline(){
   if(tlYears[0]) tlYears[0].textContent=ymLabel(YMS[0].y,YMS[0].m);
   if(tlYears[1]) tlYears[1].textContent=ymLabel(YMS[YMS.length-1].y,YMS[YMS.length-1].m);
 
-  /* Add yearly tick labels inside the track */
+  /* Add yearly tick labels inside the track, first year included: on the phone
+     layout all of them are shown, on desktop layoutTimelineTicks() hides the
+     first one. It keeps its own id because updateThumb() hides it again as soon
+     as the left handle is dragged inwards, where it would collide with the
+     handle. Each label carries its true position on the month scale in
+     dataset.pct; layoutTimelineTicks() decides whether to use it. */
   const minY=YMS[0].y, maxY=YMS[YMS.length-1].y;
-  for(let yr=minY+1; yr<=maxY; yr++){
+  for(let yr=minY; yr<=maxY; yr++){
     const idx=YMS.findIndex(ym=>ym.y===yr&&ym.m===1);
     if(idx<0) continue;
     const pct=idx/(YMS.length-1)*100;
     const lbl=document.createElement('span');
     lbl.className='tl-tick-label';
+    if(yr===minY) lbl.id='tl-tick-first';
     lbl.textContent=yr;
+    lbl.dataset.pct=pct;
     lbl.style.left=pct+'%';
     track.appendChild(lbl);
   }
   applyTimelineLabelSize();
+  requestAnimationFrame(fitFirstTimelineTick);
 
   function refresh(){
     if(activeTab==='map') updateMapColors();
@@ -2077,16 +1454,35 @@ function setupTimeline(){
     else setEndFromT(t);
   });
   let drag=null; /* 'start' | 'end' */
-  document.getElementById('tl-thumb-left').addEventListener('mousedown',e=>{drag='start';e.preventDefault();});
-  document.getElementById('tl-thumb').addEventListener('mousedown',e=>{drag='end';e.preventDefault();});
-  document.addEventListener('mousemove',e=>{
+  /* Pointer events rather than mouse events: on a touch screen a finger never
+     produces mousedown/mousemove, so both range handles were immovable and the
+     timeline could only be jumped by tapping the track. Pointer events cover
+     mouse, touch and pen from one code path.
+
+     touch-action:none on the handles (set in responsive.css) stops the browser
+     claiming the gesture for page scrolling before it reaches us, and pointer
+     capture keeps the drag alive when the finger slides off the handle. */
+  function startDrag(which){
+    return e=>{
+      drag=which;
+      e.preventDefault();
+      if(e.pointerId!==undefined && e.target.setPointerCapture){
+        try{ e.target.setPointerCapture(e.pointerId); }catch(_){}
+      }
+    };
+  }
+  document.getElementById('tl-thumb-left').addEventListener('pointerdown',startDrag('start'));
+  document.getElementById('tl-thumb').addEventListener('pointerdown',startDrag('end'));
+  document.addEventListener('pointermove',e=>{
     if(!drag) return;
+    e.preventDefault();
     const rect=track.getBoundingClientRect();
     const t=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
     if(drag==='start') setStartFromT(t);
     else setEndFromT(t);
   });
-  document.addEventListener('mouseup',()=>drag=null);
+  document.addEventListener('pointerup',()=>drag=null);
+  document.addEventListener('pointercancel',()=>drag=null);
   playBtn.addEventListener('click',()=>{
     mapPlaying=!mapPlaying;
     document.getElementById('play-icon').style.display=mapPlaying?'none':'';
@@ -2119,6 +1515,8 @@ function updateThumb(){
   fill.style.width=(pctEnd-pctStart)+'%';
   document.getElementById('tl-thumb-left').style.left=pctStart+'%';
   document.getElementById('tl-thumb').style.left=pctEnd+'%';
+  const firstTick=document.getElementById('tl-tick-first');
+  if(firstTick) firstTick.style.display = (isMobileView() && mapYmStartIdx===0) ? '' : 'none';
 }
 
 /* ════════════════════════════════════
@@ -2135,8 +1533,30 @@ const MAP_INITIAL_ZOOM = { k: 1.01, x: 1, y: 10 };
    Same k/x/y meaning as MAP_INITIAL_ZOOM. Raise k to start fullscreen more zoomed in. */
 const MAP_FULLSCREEN_ZOOM = { k: 1.01, x: 1, y: 10 };
 
+/* Zoom/pan applied to the flat map in the phone layout (html.mobile), where
+   responsive.css gives the map box 25% more height than the 960x420
+   projection needs so the world isn't wedged against the tab bar and the
+   colour legend.
+
+   The drawn world does not sit in the middle of the viewBox by itself: under
+   MAP_INITIAL_ZOOM the bounding box of #map-g is centred at roughly (454, 227)
+   rather than the viewBox centre (480, 210). These offsets are MAP_INITIAL_ZOOM
+   shifted by that difference, which puts the map dead centre of the taller box
+   on both axes. Re-measure with map-g.getBBox() if the projection or its
+   fitExtent ever changes. */
+const MAP_MOBILE_ZOOM = { k: 1.01, x: -33, y: 55 };
+
+/* Which of the three framings applies right now. Fullscreen wins over the
+   phone layout: the fullscreen path lays the card out at its desktop size. */
+function mapZoomConfigFor(){
+  if(document.fullscreenElement) return MAP_FULLSCREEN_ZOOM;
+  if(document.documentElement.classList.contains('mobile')) return MAP_MOBILE_ZOOM;
+  return MAP_INITIAL_ZOOM;
+}
+
 let mapZoomBehaviour = null; /* set in setupMapZoom(), used by the fullscreen handler below */
 let mapZoomSvgEl = null;
+let mapApplyLayoutZoom = null; /* set in setupMapZoom(); re-frames the map when the layout changes */
 
 /* ── Flat map zoom ── */
 (function setupMapZoom(){
@@ -2187,12 +1607,26 @@ let mapZoomSvgEl = null;
   mapZoomBehaviour = zoom;
   mapZoomSvgEl = svgEl;
 
-  /* Apply the configured initial zoom/pan on load (no animation) */
-  const initialTransform = d3.zoomIdentity.translate(MAP_INITIAL_ZOOM.x, MAP_INITIAL_ZOOM.y).scale(MAP_INITIAL_ZOOM.k);
-  d3.select(svgEl).call(zoom.transform, initialTransform);
-  mapZoomScale = MAP_INITIAL_ZOOM.k;
-  lastResScale = MAP_INITIAL_ZOOM.k;
-  applyZoomStrokes(MAP_INITIAL_ZOOM.k);
+  /* Apply the framing for the current layout (no animation), on load and
+     again whenever the layout switches between desktop, phone and fullscreen
+     -- each has its own. Without `force` it is a no-op when the framing hasn't
+     actually changed, so a resize that stays within one layout leaves the
+     user's own pan/zoom alone. */
+  let lastFraming = null;
+  mapApplyLayoutZoom = function(force){
+    const z = mapZoomConfigFor();
+    const framing = z.k + '|' + z.x + '|' + z.y;
+    if(!force && framing === lastFraming) return;
+    lastFraming = framing;
+    d3.select(svgEl).call(zoom.transform, d3.zoomIdentity.translate(z.x, z.y).scale(z.k));
+    mapZoomScale = z.k;
+    lastResScale = z.k;
+    applyZoomStrokes(z.k);
+  };
+  /* setupResponsiveScale() lives outside main(), so it cannot see this
+     binding; it re-frames the map through the window handle instead. */
+  window.__ustMapApplyLayoutZoom = mapApplyLayoutZoom;
+  mapApplyLayoutZoom();
 
   /* prevent zoom from triggering tooltip while dragging */
   svgEl.addEventListener('wheel', e => e.stopPropagation(), {passive:true});
@@ -2212,11 +1646,13 @@ let mapZoomSvgEl = null;
   });
   document.getElementById('map-zoom-reset').addEventListener('click', () => {
     if(mapViewMode !== 'map') return;
-    lastResScale = MAP_INITIAL_ZOOM.k;
-    mapZoomScale = MAP_INITIAL_ZOOM.k;
-    d3.select(svgEl).transition().duration(400).call(zoom.transform, initialTransform);
-    if(mapGeo) applyMapResolution(MAP_INITIAL_ZOOM.k);
-    applyZoomStrokes(MAP_INITIAL_ZOOM.k);
+    const z = mapZoomConfigFor();
+    lastResScale = z.k;
+    mapZoomScale = z.k;
+    d3.select(svgEl).transition().duration(400)
+      .call(zoom.transform, d3.zoomIdentity.translate(z.x, z.y).scale(z.k));
+    if(mapGeo) applyMapResolution(z.k);
+    applyZoomStrokes(z.k);
   });
 })();
 
@@ -2514,6 +1950,24 @@ function wrapLabelAuto(name, maxWidth, measureFn) {
   return lines;
 }
 
+/* Last resort under wrapLabelAuto: a single word that is wider than the space
+   available however it is wrapped ("Vereinigtes", "Deutschland" in the phone
+   bar chart's label gutter). Split it across lines with a hyphen, so it reads
+   as a broken word rather than running under the chart and being clipped. */
+function hardBreakLabel(word, maxWidth, measureFn) {
+  const out = [];
+  let rest = word;
+  while (measureFn(rest) > maxWidth && rest.length > 2) {
+    let i = rest.length - 1;
+    while (i > 1 && measureFn(rest.slice(0, i) + '-') > maxWidth) i--;
+    if (i <= 1) break;              /* not even one character plus a hyphen fits */
+    out.push(rest.slice(0, i) + '-');
+    rest = rest.slice(i);
+  }
+  out.push(rest);
+  return out;
+}
+
 function renderLine(){
   const metric=document.querySelector('#line-metric-dropdown .sort-custom-option.active')?.dataset.value||'total';
   const toPlot=[...selected];
@@ -2535,7 +1989,18 @@ function renderLine(){
      would letterbox the chart (viewBox meet). Measure the content box instead. clientWidth/clientHeight are layout px, unaffected by the outer
      transform:scale, so this can't race with it. Fullscreen (CSS zoom) still
      uses the native constants, keeping the behaviour described above. */
-  if(document.documentElement.classList.contains('fluid') && !document.fullscreenElement){
+  /* Mobile joins fluid here: with the transform gone the SVG is laid out at
+     real pixels, so the native 953×489 constants would overflow the box
+     rather than being scaled into it. */
+  /* Not while staged for an image export: USTExport puts the card in an
+     off-screen box with exactly the landing page's embedded geometry (see
+     applyScale), so the native constants are the right ones — measuring here
+     would instead pick up the box's own rounding and draw the plot at a
+     slightly different aspect than every other device produces. */
+  if((document.documentElement.classList.contains('fluid') ||
+      document.documentElement.classList.contains('mobile')) &&
+     !document.documentElement.classList.contains('exporting-desktop') &&
+     !document.fullscreenElement){
     const lw=document.querySelector('.line-chart-wrap');
     if(lw){
       const cs=getComputedStyle(lw);
@@ -2596,7 +2061,7 @@ function renderLine(){
     .attr('fill','#000');
   yLabelLines.forEach((line, i) =>
     yLabelEl.append('tspan')
-      .attr('x', -30)
+      .attr('x', lcStyle.unitLabelX === undefined ? -30 : lcStyle.unitLabelX)
       .attr('y', yLabelTopY + i * yLabelLineGap)
       .text(line)
   );
@@ -2670,16 +2135,18 @@ function renderLine(){
           })
           .on('mouseleave',()=>{hideCountryTT();hideLineCrosshair();});
     });
-    const last=pts[pts.length-1];
-    const lx=iW + 6, ly=ySc(last.v);
-    const lines=wrapLabelAuto(c, maxLabelWidth, measureLineLabel);
-    const t=g.append('text')
-      .attr('x',lx)
-      .attr('y',ly-(lines.length-1)*7)
-      .attr('font-size',lcStyle.endLabelFontSize)
-      .attr('fill',col)
-      .attr('text-anchor','start');
-    lines.forEach((line,i)=>t.append('tspan').attr('x',lx).attr('dy',i===0?'0':'1.1em').text(line));
+    if(lcStyle.endLabels !== false){
+      const last=pts[pts.length-1];
+      const lx=iW + 6, ly=ySc(last.v);
+      const lines=wrapLabelAuto(c, maxLabelWidth, measureLineLabel);
+      const t=g.append('text')
+        .attr('x',lx)
+        .attr('y',ly-(lines.length-1)*7)
+        .attr('font-size',lcStyle.endLabelFontSize)
+        .attr('fill',col)
+        .attr('text-anchor','start');
+      lines.forEach((line,i)=>t.append('tspan').attr('x',lx).attr('dy',i===0?'0':'1.1em').text(line));
+    }
   });
   labelMeasurer.remove();
 
@@ -2739,6 +2206,15 @@ function renderLine(){
    BAR
 ════════════════════════════════════ */
 const TOP_SPACING_PX=20, BOTTOM_SPACING_PX=5; // gap above first bar / below last bar, in px
+/* The desktop gaps are tuned against a ~600px-tall plot. On a phone the same absolute
+   values sit next to a ~260px one, where they read as dead bands above the first bar
+   and below the last. Trim both, and let the bars fill more of the box (BAR_FILL) so
+   the leftover strip under the last bar shrinks too. */
+const MOBILE_TOP_SPACING_PX=8, MOBILE_BOTTOM_SPACING_PX=2;
+const isMobileView=()=>document.documentElement.classList.contains('mobile');
+const barTopSpacing=()=>isMobileView()?MOBILE_TOP_SPACING_PX:TOP_SPACING_PX;
+const barBottomSpacing=()=>isMobileView()?MOBILE_BOTTOM_SPACING_PX:BOTTOM_SPACING_PX;
+const barFillRatio=()=>isMobileView()?0.98:0.9;
 
 function renderBar(){
   const metric=document.querySelector('#bar-metric-dropdown .sort-custom-option.active')?.dataset.value||'total';
@@ -2764,15 +2240,20 @@ function renderBar(){
   const wrapCS=getComputedStyle(wrap);
   const wrapPadX=(parseFloat(wrapCS.paddingLeft)||0)+(parseFloat(wrapCS.paddingRight)||0);
   const W=Math.max(200,(wrap.clientWidth||700)-wrapPadX);
-  const padL=75, padR=75;
+  // On a phone the fixed desktop gutters eat a large share of a ~330px canvas: the
+  // country labels float far from the left edge and the bars stay stubby. Tighten
+  // both sides there — padR still clears the widest value label plus its 6px offset.
+  const isMobileBar=isMobileView();
+  const padL=isMobileBar?78:75, padR=isMobileBar?60:75;
+  const topSpacing=barTopSpacing(), bottomSpacing=barBottomSpacing(), fill=barFillRatio();
   const n=toPlot.length;
   const MIN_BAR=22, GAP_RATIO=0.45;
-  const containerH=(wrap.clientHeight||400)-TOP_SPACING_PX-BOTTOM_SPACING_PX;
-  const fitBH=n>0 ? Math.floor(containerH * 0.9 / (n + (n-1)*GAP_RATIO)) : containerH * 0.9;
+  const containerH=(wrap.clientHeight||400)-topSpacing-bottomSpacing;
+  const fitBH=n>0 ? Math.floor(containerH * fill / (n + (n-1)*GAP_RATIO)) : containerH * fill;
   const MAX_BAR=Math.floor(containerH * 0.36);
   const bH=Math.max(MIN_BAR, Math.min(MAX_BAR, fitBH));
   const gap=Math.max(8, Math.round(bH * GAP_RATIO));
-  const padT=TOP_SPACING_PX;
+  const padT=topSpacing;
 
   d3.select('#bar-svg').selectAll('*').remove();
   const svg=d3.select('#bar-svg');
@@ -2781,20 +2262,55 @@ function renderBar(){
   const mx=Math.max(...vals,0.001);
   const xSc=d3.scaleLinear().domain([0,mx]).range([0,W-padL-padR]);
 
-  const barLabelMeasurer=svg.append('text').attr('font-size','0.82rem').style('visibility','hidden');
+  /* Donor-name type size. Desktop keeps the 0.82rem it always had (null =
+     "leave it to the attribute"); the phone gets a smaller px base, because
+     even with the wider gutter above, names like "Vereinigtes Königreich"
+     don't fit the strip at desktop size and were being clipped at x=0. */
+  const BAR_LABEL_MOBILE_FS=11, BAR_LABEL_MIN_FS=8.5;
+  const barLabelBaseFS=isMobileBar?BAR_LABEL_MOBILE_FS:null;
+  const barLabelMeasurer=svg.append('text').style('visibility','hidden');
+  const setMeasureFS=fs=>barLabelMeasurer.attr('font-size', fs==null?'0.82rem':fs+'px');
   const measureBarLabel=str=>{ barLabelMeasurer.text(str); return barLabelMeasurer.node().getComputedTextLength(); };
   const maxBarLabelWidth=padL-8-6; // 6px safety margin so wrapped lines never sit flush against x=0 — at export scale that flush edge clips glyphs
-  const lineH=11;
+  const barLineH=fs=>fs==null?11:Math.round(fs)+1;
+
+  /* Wrap at the base size; if the longest resulting line still overhangs
+     (a single long word can't be wrapped), step the size down for THAT label
+     only until it fits or hits the floor, then hyphen-break what's left.
+     Desktop takes the first branch and behaves exactly as before. */
+  function fitBarLabel(name){
+    if(barLabelBaseFS==null){
+      setMeasureFS(null);
+      return {lines:wrapLabelAuto(name, maxBarLabelWidth, measureBarLabel), fs:null};
+    }
+    let fs=barLabelBaseFS, lines;
+    for(;;){
+      setMeasureFS(fs);
+      lines=wrapLabelAuto(name, maxBarLabelWidth, measureBarLabel);
+      const widest=Math.max(...lines.map(measureBarLabel));
+      if(widest<=maxBarLabelWidth || fs<=BAR_LABEL_MIN_FS) break;
+      const next=Math.max(BAR_LABEL_MIN_FS, Math.floor(fs*maxBarLabelWidth/widest*10)/10);
+      if(next>=fs) break;   /* guard: measurement noise must not loop forever */
+      fs=next;
+    }
+    setMeasureFS(fs);
+    if(Math.max(...lines.map(measureBarLabel))>maxBarLabelWidth){
+      lines=lines.flatMap(l=>measureBarLabel(l)>maxBarLabelWidth
+        ? hardBreakLabel(l, maxBarLabelWidth, measureBarLabel) : [l]);
+    }
+    return {lines, fs};
+  }
 
   // Row height must grow to fit wrapped multi-line aggregate labels, or adjacent
   // rows' labels overlap — the bar's own thickness (bH) is not always tall enough.
   const rowInfo=toPlot.map(d=>{
-    const bLines=wrapLabelAuto(d.c, maxBarLabelWidth, measureBarLabel);
+    const {lines:bLines, fs}=fitBarLabel(d.c);
+    const lineH=barLineH(fs);
     const rowH=Math.max(bH, bLines.length*lineH+4);
-    return {bLines,rowH};
+    return {bLines,rowH,fs,lineH};
   });
   const barsH=rowInfo.reduce((s,r)=>s+r.rowH,0)+(n-1)*gap;
-  const H=padT+barsH+BOTTOM_SPACING_PX;
+  const H=padT+barsH+bottomSpacing;
   svg.attr('width',W).attr('height',H).attr('viewBox',`0 0 ${W} ${H}`);
 
   svg.append('line')
@@ -2804,7 +2320,7 @@ function renderBar(){
 
   let yCursor=padT;
   toPlot.forEach((d,i)=>{
-    const {bLines,rowH}=rowInfo[i];
+    const {bLines,rowH,fs:labelFS,lineH}=rowInfo[i];
     const y=yCursor+(rowH-bH)/2;
     yCursor+=rowH+gap;
     const val=barUseVal(d)??0;
@@ -2813,7 +2329,7 @@ function renderBar(){
     const g=svg.append('g').attr('transform',`translate(${padL},${y})`);
 
     const t=g.append('text').attr('x',-8).attr('text-anchor','end')
-      .attr('font-size','0.82rem').attr('fill','#333').attr('font-weight','400');
+      .attr('font-size',labelFS==null?'0.82rem':labelFS+'px').attr('fill','#333').attr('font-weight','400');
     const startY=bH/2-(bLines.length-1)*lineH/2;
     bLines.forEach((line,i)=>t.append('tspan').attr('x',-8).attr('y',startY+i*lineH).attr('text-anchor','end').text(line));
 
@@ -2857,6 +2373,15 @@ function renderBar(){
     legend.style.display='none';
   }
 
+  /* On a phone .bar-chart-wrap is a fixed-height box, so a handful of selected
+     donors leaves the bars stacked against its top edge over a tall empty strip.
+     Offset the SVG by half the leftover height so the group sits centred. Once
+     there are enough bars to fill or overflow the box the slack is 0 and this is
+     a no-op, so it never introduces a scroll offset. */
+  svg.node().style.marginTop = isMobileBar
+    ? Math.max(0, Math.round(((wrap.clientHeight||0) - H) / 2)) + 'px'
+    : '';
+
   updateBarScrollSpacing();
 }
 
@@ -2869,7 +2394,7 @@ function updateBarScrollSpacing(){
   const svg=document.getElementById('bar-svg');
   if(!wrap||!svg) return;
   const atBottom=wrap.scrollTop+wrap.clientHeight>=wrap.scrollHeight-1;
-  svg.style.marginBottom=atBottom?'0px':`-${BOTTOM_SPACING_PX}px`;
+  svg.style.marginBottom=atBottom?'0px':`-${barBottomSpacing()}px`;
 }
 document.querySelector('.bar-chart-wrap')?.addEventListener('scroll', updateBarScrollSpacing);
 
@@ -3238,6 +2763,11 @@ async function copyChartAsImage(){
       if(activeTab === 'bar'){
         const barWrapClone = panelClone.querySelector('.bar-chart-wrap');
         if(barWrapClone) barWrapClone.style.marginTop = '0';
+        /* Same for the centring offset renderBar puts on the SVG: the export
+           stretches the box to its natural content height, so that half-slack
+           would just be a gap above the first bar. */
+        const barSvgClone = panelClone.querySelector('#bar-svg');
+        if(barSvgClone) barSvgClone.style.marginTop = '0';
         /* On screen #bar-legend is a `position:absolute` overlay pinned to
            the bottom-right of its flex-item parent, which works because that
            parent's height is bounded by the viewport. In the export, that
@@ -3393,9 +2923,36 @@ async function copyChartAsImage(){
   }
 }
 
+/* An exported chart should look like the chart, not like the device it was
+   copied from: same selections, same view, same time range, but the desktop
+   layout — full-width plot, country names at the line ends, the legend where
+   a reader expects it.
+
+   copyChartAsImage() builds its image from the live panel, so the card is
+   first moved into an off-screen box the size it has on the landing page and
+   re-rendered there (../../assets/export-desktop.js). It used to be relaid
+   out in place: the widget visibly snapped to the desktop layout, sat there
+   for a second and snapped back, which read as a glitch. Off-screen, the
+   only thing the reader sees is the card's own slot holding its place.
+
+   Nothing about the selection is touched, so the image matches what is on
+   screen; only the layout it is drawn in changes. */
+function copyChartAsImageDesktop(){
+  if(!window.USTExport) return copyChartAsImage();
+  const size = USTExport.DESKTOP.explorer;
+  return USTExport.withDesktopLayout({
+    width: size.width,
+    height: size.height,
+    relayout(){
+      if(typeof window.__ustApplyScale === 'function') window.__ustApplyScale();
+      if(typeof window.__ustRelayoutActivePanel === 'function') window.__ustRelayoutActivePanel();
+    }
+  }, copyChartAsImage);
+}
+
 document.getElementById('opt-image').addEventListener('click',()=>{
   shareDrop.classList.remove('open');
-  copyChartAsImage();
+  copyChartAsImageDesktop();
 });
 
 document.getElementById('fullscreen-btn').addEventListener('click',()=>{
@@ -3424,11 +2981,7 @@ document.addEventListener('fullscreenchange',()=>{
   document.getElementById('fs-compress-icon').style.display=isFs?'':'none';
   document.getElementById('fullscreen-btn').title=isFs?'Exit fullscreen':'Fullscreen';
   if(mapViewMode==='globe') requestAnimationFrame(buildGlobe);
-  if(mapViewMode==='map' && mapZoomBehaviour && mapZoomSvgEl){
-    const z = isFs ? MAP_FULLSCREEN_ZOOM : MAP_INITIAL_ZOOM;
-    const t = d3.zoomIdentity.translate(z.x, z.y).scale(z.k);
-    d3.select(mapZoomSvgEl).call(mapZoomBehaviour.transform, t);
-  }
+  if(mapViewMode==='map' && mapApplyLayoutZoom) mapApplyLayoutZoom(true);
   /* Re-render the line chart so LINE_CHART_STYLE.normal/fullscreen values
      (axis + unit-label font sizes, left/right padding, legend size) take
      effect. Defer to after the fullscreen CSS (zoom + base font-size on
@@ -3799,6 +3352,8 @@ document.addEventListener('fullscreenchange',()=>{
 /* ════════════════════════════════════
    INIT
 ════════════════════════════════════ */
+applyMobileTabDefault(activeTab);
+syncEuSelection();
 renderLeftList();
 renderActiveChart();
 
@@ -3860,6 +3415,21 @@ main();
   /* Smallest unscaled height the internal layout stays usable at (header +
      controls + a real chart area + timeline + footer). */
   const MIN_UNSCALED_H = 520;
+  /* Embedded, the height stops shrinking with the width below this scale --
+     see the embedded branch of applyScale() for why. 0.78 puts the knee at
+     ~900px of iframe width, which is also where the landing page's chart
+     grid collapses to a single column. */
+  const HEIGHT_SCALE_FLOOR = 0.78;
+  /* Below this width the widget stops being scaled at all and switches to a
+     stacked, natively-sized layout (html.mobile, styled in data_explorer.css).
+
+     Scaling is what made narrow viewports unusable: the explorer is a fixed
+     1155px design scaled to fit, so at a 390px phone width every dimension
+     including the 14px base font renders at 34% -- about 4.7px of text. No
+     height adjustment can fix that, because the type is shrinking with the
+     box. Below MOBILE_MAX_W the transform is dropped, the internal layout
+     reflows into a single column, and text renders at its real size. */
+  const MOBILE_MAX_W = 700;
   const fluid = document.documentElement.classList.contains('fluid');
   const container = document.getElementById('explorer-scale-container');
   const wrap = document.getElementById('explorer-wrap');
@@ -3872,6 +3442,24 @@ main();
     if(typeof window.__ustRelayoutActivePanel === 'function') window.__ustRelayoutActivePanel();
   }
 
+  /* Same arrangement as above: setupMapZoom() runs inside main(), so its
+     mapApplyLayoutZoom is not a name this function can reference directly.
+     Doing so threw a ReferenceError out of every applyScale() call, which on
+     a phone killed the height message to the embedding page — the iframe kept
+     its 732px placeholder and showed a band of dead space under the card. */
+  function applyMapLayoutZoom(){
+    if(typeof window.__ustMapApplyLayoutZoom === 'function') window.__ustMapApplyLayoutZoom();
+  }
+
+  /* Same again for the timeline labels. Calling the main()-local name directly
+     from here threw a ReferenceError out of every applyScale() call — including
+     the very first one — so the wrap never got its transform and the card sat
+     at its unscaled 1155px inside a narrower container, clipped by the scale
+     container's overflow:hidden. */
+  function applyTimelineLabelSize(){
+    if(typeof window.__ustApplyTimelineLabelSize === 'function') window.__ustApplyTimelineLabelSize();
+  }
+
   let lastH = null;
   function applyScale(){
     if(document.fullscreenElement === wrap){
@@ -3882,6 +3470,62 @@ main();
       return;
     }
     const availW = container.clientWidth;
+
+    /* Staged for an image export: USTExport has moved the card into an
+       off-screen box of exactly the width it has on the landing page, and
+       what the export must reproduce is that embed — the fixed 1155×730
+       design uniformly scaled to it. Neither of the branches below would do
+       that here: `fluid` is set whenever the page is its own tab (which it
+       is, on a phone), and that branch fits the card to the *window*, which
+       off-screen is still the phone's. So the embedded geometry is applied
+       directly, and no height is posted to an embedder — the box is
+       temporary and about to be handed back. */
+    if(document.documentElement.classList.contains('exporting-desktop')){
+      document.documentElement.classList.remove('mobile');
+      const exportScale = availW / EXPLORER_W;
+      wrap.style.height = EXPLORER_H + 'px';
+      wrap.style.transform = `scale(${exportScale})`;
+      container.style.height = Math.round(EXPLORER_H * exportScale) + 'px';
+      applyMapLayoutZoom();
+      applyTimelineLabelSize();
+      rerenderActivePanel();
+      lastH = null;
+      return;
+    }
+
+    if(availW && availW < MOBILE_MAX_W){
+      /* Mobile: no transform, no fixed aspect. The card lays itself out in
+         normal flow and is exactly as tall as its content needs, which is
+         also the height an embedder should give the iframe. */
+      document.documentElement.classList.add('mobile');
+      wrap.style.transform = '';
+      wrap.style.height = '';
+      container.style.height = '';
+      /* The timeline's year ticks are sized and spaced per layout, and the
+         class above can flip at any resize, so re-apply them here too. */
+      applyTimelineLabelSize();
+      /* The phone layout gives the map box a different shape, so it needs its
+         own framing (MAP_MOBILE_ZOOM) to stay centred. */
+      applyMapLayoutZoom();
+
+      const h = Math.round(wrap.getBoundingClientRect().height);
+      if(h !== lastH){
+        lastH = h;
+        rerenderActivePanel();
+        /* Re-measure: relaying the active panel can change the card's height
+           (a chart that reflowed into a different number of rows), and the
+           embedder needs the settled number, not the pre-render one. */
+        const settled = Math.round(wrap.getBoundingClientRect().height);
+        if(settled) lastH = settled;
+      }
+      if(window.parent !== window && lastH){
+        window.parent.postMessage({type:'ust-explorer-height', height:lastH}, '*');
+      }
+      return;
+    }
+    document.documentElement.classList.remove('mobile');
+    applyMapLayoutZoom();
+    applyTimelineLabelSize();
 
     if(fluid){
       const availH = container.clientHeight;
@@ -3902,21 +3546,130 @@ main();
       return;
     }
 
+    /* Embedded. The card keeps its 1155px design width and is scaled down to
+       the iframe, so text and geometry never distort.
+
+       What used to happen as well is that the *height* shrank by that same
+       factor, so at half width the whole explorer became a 365px letterbox:
+       the map squeezed into a strip, the country list reduced to a sliver,
+       while the plain chart cards below it on the landing page reflowed and
+       stayed full size. Standalone the widget did the right thing -- it grew
+       its unscaled height and let the internal flex layout reflow into it --
+       and the two modes visibly disagreed.
+
+       Below HEIGHT_SCALE_FLOOR the displayed height stops following the
+       width. The card is handed more unscaled height instead and reflows
+       into it, exactly as the standalone path does. At or above the floor
+       hScale === scale, unscaledH === EXPLORER_H, and every number here is
+       what it always was. */
     const scale = availW / EXPLORER_W;
-    wrap.style.height = EXPLORER_H + 'px';
+    const hScale = Math.max(scale, HEIGHT_SCALE_FLOOR);
+    const h = Math.round(EXPLORER_H * hScale);
+    const unscaledH = Math.max(MIN_UNSCALED_H, h / scale);
+    wrap.style.height = unscaledH + 'px';
     wrap.style.transform = `scale(${scale})`;
-    const h = Math.round(EXPLORER_H * scale);
     container.style.height = h + 'px';
     /* Let a parent page embedding us via <iframe> resize the iframe to match,
        so scaling down never leaves a blank gap or clips content. */
     if(window.parent !== window){
       window.parent.postMessage({type:'ust-explorer-height', height:h}, '*');
     }
+    /* Only when the reflow path above actually changed the box: at desktop
+       widths the layout is untouched and main() has already drawn it. */
+    if(unscaledH !== EXPLORER_H && h !== lastH){ lastH = h; rerenderActivePanel(); }
   }
 
   applyScale();
   window.addEventListener('resize', applyScale);
   document.addEventListener('fullscreenchange', applyScale);
+
+  /* In mobile mode the card's height comes from its content, and the content
+     changes without the window ever resizing: switching Table/Map/Line/Bar
+     swaps in a panel of a different height, and opening the donor list adds
+     rows. Nothing told the embedder, so the iframe kept the previous view's
+     height and clipped whatever now sat at the bottom -- usually the footer
+     with the info/download/share buttons.
+
+     Watching the card itself catches every one of those cases. applyScale()
+     doesn't set a height in mobile mode, so observing it can't feed back. */
+  window.__ustApplyScale = applyScale;
+  if(typeof ResizeObserver !== 'undefined'){
+    new ResizeObserver(() => {
+      if(document.documentElement.classList.contains('mobile')) applyScale();
+    }).observe(wrap);
+  }
+})();
+</script>
+<script>
+/* ── PHONE: donor list as a disclosure bar ──────────────────────────────
+   The sidebar's 47 checkboxes are otherwise the first thing on the card,
+   ahead of the chart they filter. This puts them behind one bar labelled
+   the way the other chart cards label their donor selector.
+
+   Injected rather than written into the markup so both language builds and
+   every view (table / map / line / bar) pick it up from one place. The bar
+   is display:none outside html.mobile, so desktop is untouched. */
+(function setupMobileDonorToggle(){
+  const wrap   = document.getElementById('explorer-wrap');
+  const panel  = document.querySelector('.left-panel');
+  const right  = document.querySelector('.right-panel');
+  const list   = document.getElementById('left-list');
+  const header = right && right.querySelector('.chart-header');
+  if(!wrap || !panel || !right || !list || !header) return;
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'ust-donor-toggle';
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-controls', 'left-list');
+
+  const text = document.createElement('span');
+  text.textContent = document.documentElement.lang === 'de'
+    ? 'Geber auswählen'
+    : 'Select donors';
+  btn.appendChild(text);
+  btn.insertAdjacentHTML('beforeend',
+    '<svg width="10" height="10" viewBox="0 0 8 8" aria-hidden="true">' +
+    '<path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" ' +
+    'fill="none" stroke-linecap="round"/></svg>');
+
+  btn.addEventListener('click', () => {
+    const open = panel.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if(open && !window._aggOpen){
+      /* Show the aggregate rows (EU Members, Continental Europe, …) straight
+         away rather than behind a second tap. Driven through the list's own
+         toggle because the function that rebuilds the list is closure-scoped
+         — setting the flag alone would leave the markup stale. The toggle is
+         absent on the map tab, where an aggregate has no shape to colour. */
+      const aggToggle = document.getElementById('aggregate-toggle');
+      if(aggToggle) aggToggle.click();
+    }
+    /* Opening or closing changes how tall the card is, and an embedding page
+       sizes its iframe from that. applyScale() is already on resize. */
+    window.dispatchEvent(new Event('resize'));
+  });
+
+  panel.insertBefore(btn, list);
+
+  /* On a phone the selector belongs under the chart's title, not above it:
+     the title is what tells you what you are looking at. The panel is a
+     sibling of .right-panel in the desktop row layout, so moving it means
+     moving the node — and moving it back when the viewport grows again. */
+  function placePanel(){
+    if(document.documentElement.classList.contains('mobile')){
+      if(panel.previousElementSibling !== header || panel.parentElement !== right){
+        header.insertAdjacentElement('afterend', panel);
+      }
+    } else if(panel.parentElement !== wrap){
+      wrap.insertBefore(panel, right);
+    }
+  }
+  /* applyScale() sets/clears html.mobile on the same event and its listener
+     was registered first, so the class is already correct by the time this
+     one runs. */
+  window.addEventListener('resize', placePanel);
+  placePanel();
 })();
 </script>
 </body>
