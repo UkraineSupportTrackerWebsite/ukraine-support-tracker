@@ -202,7 +202,7 @@
           </button>
           <div class="sort-custom-dropdown" id="bar-metric-dropdown">
             <div class="sort-custom-option active" data-value="total">Total allocations</div>
-            <div class="sort-custom-option" data-value="alloc_commit">Allocations + Commitments</div>
+            <div class="sort-custom-option" data-value="alloc_commit">Total Allocated Aid + Aid to be Allocated</div>
             <div class="sort-custom-option" data-value="pct">Share of GDP</div>
             <div class="sort-custom-option" data-value="fin">Financial Aid</div>
             <div class="sort-custom-option" data-value="mil">Military Aid</div>
@@ -335,7 +335,7 @@ const rows = await USTData.fetchCSV('data_explorer.csv');
 MONTHLY = rows.map(r => ({
   c: r.country, iso: r.iso, y: r.year, m: r.month,
   tot: r.total, fin: r.financial, hum: r.humanitarian, mil: r.military,
-  commit: r.commitments,
+  commit: r.to_be_allocated,
   gdp: r.gdp, pct: r.pct_gdp
 }));
 RELEASE_LABEL = await USTData.fetchReleaseLabel(RELEASE_LABEL);
@@ -899,7 +899,9 @@ function getRowData() {
     const fin = rows.reduce((s,d)=>s+d.fin,0);
     const hum = rows.reduce((s,d)=>s+d.hum,0);
     const mil = rows.reduce((s,d)=>s+d.mil,0);
-    const commit = rows.reduce((s,d)=>s+(d.commit||0),0);
+    /* clamp only after cumulating: monthly values are often negative (an
+       allocation draws down an earlier commitment) and must net out first */
+    const commit = Math.max(0, rows.reduce((s,d)=>s+(d.commit||0),0));
     const gdp = rows[0]?.gdp ?? 0;
     const pct = gdp > 0 ? tot / gdp * 100 : 0;  /* cumulative tot as % of 2021 GDP */
     /* first = first month's value, last = last month's value (for change columns) */
@@ -996,7 +998,7 @@ function metricTitle(m) {
   if(m==='fin') return 'Financial Aid to Ukraine, by Donor';
   if(m==='mil') return 'Military Aid to Ukraine, by Donor';
   if(m==='hum') return 'Humanitarian Aid to Ukraine, by Donor';
-  if(m==='alloc_commit') return 'Allocations and Commitments to Ukraine, by Donor';
+  if(m==='alloc_commit') return 'Total Allocated Aid and Aid to be Allocated, by Donor';
   return 'Aid to Ukraine, by Donor';
 }
 function metricSubtitle(m) {
@@ -1004,7 +1006,7 @@ function metricSubtitle(m) {
   if(m==='fin') return 'Bilateral government financial aid allocations to Ukraine in € billion.';
   if(m==='mil') return 'Bilateral government military aid allocations to Ukraine in € billion.';
   if(m==='hum') return 'Bilateral government humanitarian aid allocations to Ukraine in € billion.';
-  if(m==='alloc_commit') return 'Bilateral government aid allocations vs. commitments to Ukraine, in € billion.';
+  if(m==='alloc_commit') return 'Bilateral government aid to Ukraine already allocated and still to be allocated, in € billion.';
   return 'Total bilateral government aid allocations to Ukraine in € billion.';
 }
 
@@ -1120,7 +1122,7 @@ function getMapDataAtIdx(idx){
     const fin=rows.reduce((s,d)=>s+d.fin,0);
     const hum=rows.reduce((s,d)=>s+d.hum,0);
     const mil=rows.reduce((s,d)=>s+d.mil,0);
-    const commit=rows.reduce((s,d)=>s+(d.commit||0),0);
+    const commit=Math.max(0, rows.reduce((s,d)=>s+(d.commit||0),0));  /* see note in getRowData */
     const gdp=isoR.gdp;
     const pct=gdp>0?tot/gdp*100:0;
     m[isoR.iso]={tot,pct,fin,hum,mil,commit,c};
@@ -1277,8 +1279,8 @@ const TT_LAYOUT = {
 function buildBreakdownHTML(info, isAllocCommit){
   const b = TT_LAYOUT.breakdown;
   const rows = isAllocCommit ? [
-    ['Allocations', `€${fmt(info.tot)}B`],
-    ['Commitments', `€${fmt(info.commit)}B`],
+    ['Total Allocated Aid', `€${fmt(info.tot)}B`],
+    ['Aid to be Allocated', `€${fmt(info.commit)}B`],
   ] : [
     ['Share of GDP', `${fmt(info.pct,2)}%`],
     ['Military', `€${fmt(info.mil)}B`],
@@ -1308,7 +1310,7 @@ function buildTooltipHTML(info, isAllocCommit){
         <div style="flex:1 1 auto;min-width:0;width:${t.textColumn.width}">
           <div class="tt-name" style="overflow-wrap:break-word">${info.c}</div>
           ${hasData ? `
-          <div style="font-size:0.864rem;color:#999;margin-bottom:0">${isAllocCommit ? 'Allocations' : 'Total Aid'}</div>
+          <div style="font-size:0.864rem;color:#999;margin-bottom:0">${isAllocCommit ? 'Total Allocated Aid' : 'Total Aid'}</div>
           <div class="tt-val">€${fmt(info.tot)}B</div>
           <div style="font-size:0.792rem;color:#aaa;margin-top:0.2rem">${rangeLabel}</div>
           ` : `<div style="color:#999;font-size:0.936rem">No data</div>
@@ -2367,7 +2369,7 @@ function renderBar(){
       .map(it=>`<span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:${it.col};border-radius:2px;"></span>${it.l}</span>`).join('');
   } else if(metric==='alloc_commit'){
     legend.style.display='flex';
-    legend.innerHTML=[{col:ALLOC_COMMIT_COLORS.alloc,l:'Allocations'},{col:ALLOC_COMMIT_COLORS.commit,l:'Commitments'}]
+    legend.innerHTML=[{col:ALLOC_COMMIT_COLORS.alloc,l:'Total Allocated Aid'},{col:ALLOC_COMMIT_COLORS.commit,l:'Aid to be Allocated'}]
       .map(it=>`<span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:${it.col};border-radius:2px;"></span>${it.l}</span>`).join('');
   } else {
     legend.style.display='none';
@@ -3061,7 +3063,7 @@ document.addEventListener('fullscreenchange',()=>{
 
     const leftPad = 2; // blank columns reserved to the left of the table
     const topPad  = 2; // blank rows reserved above the title
-    const dataColCount = 8; // Country, Date, Total, Financial, Military, Humanitarian, Commitments, % of 2021 GDP
+    const dataColCount = 8; // Country, Date, Total, Financial, Military, Humanitarian, Aid to be Allocated, % of 2021 GDP
     const firstCol = leftPad + 1;
     const lastCol  = leftPad + dataColCount;
     const logoCol  = lastCol + 1; // dedicated blank column so the logo never overlaps title text
@@ -3100,7 +3102,7 @@ document.addEventListener('fullscreenchange',()=>{
     ws.getRow(topPad + 5).height = 14;
     ws.addRow([]);
 
-    const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Country', 'Date', 'Total aid (€ bn)', 'Financial aid (€ bn)', 'Military aid (€ bn)', 'Humanitarian aid (€ bn)', 'Commitments (€ bn)', '% of 2021 GDP']);
+    const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Country', 'Date', 'Total aid (€ bn)', 'Financial aid (€ bn)', 'Military aid (€ bn)', 'Humanitarian aid (€ bn)', 'Aid to be Allocated (€ bn)', '% of 2021 GDP']);
     headerRow.eachCell({ includeEmpty: false }, cell => {
       cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3A6DC5' } };
@@ -3177,7 +3179,7 @@ document.addEventListener('fullscreenchange',()=>{
       sheetName: 'Countries',
       title: 'Ukraine Support Tracker — All Countries',
       subtitle: `All Aid Types · ${rangeLabel} · ${countryCount} countr${countryCount===1?'y':'ies'}`,
-      note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
+      note: 'Total, Financial, Military and Humanitarian aid, plus Aid to be Allocated, are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
       rows: countryRows,
       gdpShareByCountry
     });
@@ -3188,7 +3190,7 @@ document.addEventListener('fullscreenchange',()=>{
         sheetName: 'Aggregates',
         title: 'Ukraine Support Tracker — All Aggregates',
         subtitle: `All Aid Types · ${rangeLabel} · ${aggCount} aggregate${aggCount===1?'':'s'}`,
-        note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
+        note: 'Total, Financial, Military and Humanitarian aid, plus Aid to be Allocated, are cumulated over the full period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
         rows: aggregateRows,
         gdpShareByCountry
       });
@@ -3225,7 +3227,7 @@ document.addEventListener('fullscreenchange',()=>{
       sheetName: 'Countries',
       title: 'Ukraine Support Tracker — Selected Countries',
       subtitle: `All Aid Types · ${rangeLabel} · ${countryCount} countr${countryCount===1?'y':'ies'}`,
-      note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
+      note: 'Total, Financial, Military and Humanitarian aid, plus Aid to be Allocated, are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the country’s 2021 GDP.',
       rows: countryRows,
       gdpShareByCountry
     });
@@ -3236,7 +3238,7 @@ document.addEventListener('fullscreenchange',()=>{
         sheetName: 'Aggregates',
         title: 'Ukraine Support Tracker — Selected Aggregates',
         subtitle: `All Aid Types · ${rangeLabel} · ${aggCount} aggregate${aggCount===1?'':'s'}`,
-        note: 'Total, Financial, Military and Humanitarian aid, plus Commitments, are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
+        note: 'Total, Financial, Military and Humanitarian aid, plus Aid to be Allocated, are cumulated over the selected period. % of 2021 GDP is that cumulated total aid divided by the aggregate’s 2021 GDP.',
         rows: aggregateRows,
         gdpShareByCountry
       });
@@ -3285,8 +3287,8 @@ document.addEventListener('fullscreenchange',()=>{
       desc: `<p><strong>Humanitarian aid</strong> includes bilateral allocations to Ukraine. Does not include private donations, support for refugees outside of Ukraine, and aid by international organizations. Financial allocations that are made explicitly for military and weapons purchases are counted as military aid.</p>`
     },
     alloc_commit: {
-      label: 'Allocations + Commitments',
-      desc: `<p><strong>Allocations</strong> are aid that has concretely been earmarked to a specific project, sector or recipient. <strong>Commitments</strong> are pledges of future aid that have not yet been allocated. Both are bilateral figures for Ukraine and do not include private donations, support for refugees outside of Ukraine, or aid by international organizations.</p>`
+      label: 'Total Allocated Aid + Aid to be Allocated',
+      desc: `<p><strong>Total Allocated Aid</strong> is aid that has concretely been earmarked to a specific project, sector or recipient. <strong>Aid to be Allocated</strong> is the remainder of what has been committed but not yet allocated. The two together add up to total commitments. Both are bilateral figures for Ukraine and do not include private donations, support for refugees outside of Ukraine, or aid by international organizations.</p>`
     }
   };
 

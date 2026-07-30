@@ -997,9 +997,9 @@ document.getElementById('dl-btn').addEventListener('click', async () => {
     });
   }
 
-  addSectionBand('AGGREGATES — these overlap one another and the regions below, so do not add them together');
+  addSectionBand('AGGREGATES: these overlap one another and the regions below, so do not add them together');
   addRegionRows(aggregateRegions);
-  addSectionBand('REGIONS — non-overlapping; these four cover every donor and their shares sum to 100%');
+  addSectionBand('REGIONS: non-overlapping; these four cover every donor and their shares sum to 100%');
   addRegionRows(baseRegions);
 
   ws.columns = [

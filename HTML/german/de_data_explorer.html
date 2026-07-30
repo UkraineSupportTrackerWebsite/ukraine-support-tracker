@@ -202,7 +202,7 @@
           </button>
           <div class="sort-custom-dropdown" id="bar-metric-dropdown">
             <div class="sort-custom-option active" data-value="total">Gesamtzuweisungen</div>
-            <div class="sort-custom-option" data-value="alloc_commit">Zuweisungen + Zusagen</div>
+            <div class="sort-custom-option" data-value="alloc_commit">Zugewiesene + noch zuzuweisende Hilfe</div>
             <div class="sort-custom-option" data-value="pct">Anteil am BIP</div>
             <div class="sort-custom-option" data-value="fin">Finanzielle Hilfe</div>
             <div class="sort-custom-option" data-value="mil">Militärische Hilfe</div>
@@ -336,7 +336,7 @@ const rows = await USTData.fetchCSV('data_explorer.csv');
 MONTHLY = rows.map(r => ({
   c: r.country, iso: r.iso, y: r.year, m: r.month,
   tot: r.total, fin: r.financial, hum: r.humanitarian, mil: r.military,
-  commit: r.commitments,
+  commit: r.to_be_allocated,
   gdp: r.gdp, pct: r.pct_gdp
 }));
 RELEASE_LABEL = await USTData.fetchReleaseLabel(RELEASE_LABEL);
@@ -900,7 +900,9 @@ function getRowData() {
     const fin = rows.reduce((s,d)=>s+d.fin,0);
     const hum = rows.reduce((s,d)=>s+d.hum,0);
     const mil = rows.reduce((s,d)=>s+d.mil,0);
-    const commit = rows.reduce((s,d)=>s+(d.commit||0),0);
+    /* clamp only after cumulating: monthly values are often negative (an
+       allocation draws down an earlier commitment) and must net out first */
+    const commit = Math.max(0, rows.reduce((s,d)=>s+(d.commit||0),0));
     const gdp = rows[0]?.gdp ?? 0;
     const pct = gdp > 0 ? tot / gdp * 100 : 0;  /* cumulative tot as % of 2021 GDP */
     /* first = first month's value, last = last month's value (for change columns) */
@@ -997,7 +999,7 @@ function metricTitle(m) {
   if(m==='fin') return 'Finanzielle Hilfe für die Ukraine, nach Geber';
   if(m==='mil') return 'Militärische Hilfe für die Ukraine, nach Geber';
   if(m==='hum') return 'Humanitäre Hilfe für die Ukraine, nach Geber';
-  if(m==='alloc_commit') return 'Zuweisungen und Zusagen an die Ukraine, nach Geber';
+  if(m==='alloc_commit') return 'Zugewiesene und noch zuzuweisende Hilfe an die Ukraine, nach Geber';
   return 'Hilfsleistungen an die Ukraine, nach Geber';
 }
 function metricSubtitle(m) {
@@ -1005,7 +1007,7 @@ function metricSubtitle(m) {
   if(m==='fin') return 'Bilaterale staatliche finanzielle Hilfszuweisungen an die Ukraine in Mrd. €.';
   if(m==='mil') return 'Bilaterale staatliche militärische Hilfszuweisungen an die Ukraine in Mrd. €.';
   if(m==='hum') return 'Bilaterale staatliche humanitäre Hilfszuweisungen an die Ukraine in Mrd. €.';
-  if(m==='alloc_commit') return 'Bilaterale staatliche Hilfszuweisungen im Vergleich zu Zusagen an die Ukraine, in Mrd. €.';
+  if(m==='alloc_commit') return 'Bereits zugewiesene und noch zuzuweisende bilaterale staatliche Hilfe an die Ukraine, in Mrd. €.';
   return 'Gesamte bilaterale staatliche Hilfszuweisungen an die Ukraine in Mrd. €.';
 }
 
@@ -1121,7 +1123,7 @@ function getMapDataAtIdx(idx){
     const fin=rows.reduce((s,d)=>s+d.fin,0);
     const hum=rows.reduce((s,d)=>s+d.hum,0);
     const mil=rows.reduce((s,d)=>s+d.mil,0);
-    const commit=rows.reduce((s,d)=>s+(d.commit||0),0);
+    const commit=Math.max(0, rows.reduce((s,d)=>s+(d.commit||0),0));  /* see note in getRowData */
     const gdp=isoR.gdp;
     const pct=gdp>0?tot/gdp*100:0;
     m[isoR.iso]={tot,pct,fin,hum,mil,commit,c};
@@ -1278,8 +1280,8 @@ const TT_LAYOUT = {
 function buildBreakdownHTML(info, isAllocCommit){
   const b = TT_LAYOUT.breakdown;
   const rows = isAllocCommit ? [
-    ['Zuweisungen', `${fmt(info.tot)} Mrd. €`],
-    ['Zusagen', `${fmt(info.commit)} Mrd. €`],
+    ['Zugewiesene Hilfe', `${fmt(info.tot)} Mrd. €`],
+    ['Noch zuzuweisende Hilfe', `${fmt(info.commit)} Mrd. €`],
   ] : [
     ['Anteil am BIP', `${fmt(info.pct,2)}%`],
     ['Militärisch', `${fmt(info.mil)} Mrd. €`],
@@ -1309,7 +1311,7 @@ function buildTooltipHTML(info, isAllocCommit){
         <div style="flex:1 1 auto;min-width:0;width:${t.textColumn.width}">
           <div class="tt-name" style="overflow-wrap:break-word">${USTde.country(info.c)}</div>
           ${hasData ? `
-          <div style="font-size:0.864rem;color:#999;margin-bottom:0">${isAllocCommit ? 'Zuweisungen' : 'Gesamthilfe'}</div>
+          <div style="font-size:0.864rem;color:#999;margin-bottom:0">${isAllocCommit ? 'Zugewiesene Hilfe' : 'Gesamthilfe'}</div>
           <div class="tt-val">${fmt(info.tot)} Mrd. €</div>
           <div style="font-size:0.792rem;color:#aaa;margin-top:0.2rem">${rangeLabel}</div>
           ` : `<div style="color:#999;font-size:0.936rem">Keine Daten</div>
@@ -2369,7 +2371,7 @@ function renderBar(){
       .map(it=>`<span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:${it.col};border-radius:2px;"></span>${it.l}</span>`).join('');
   } else if(metric==='alloc_commit'){
     legend.style.display='flex';
-    legend.innerHTML=[{col:ALLOC_COMMIT_COLORS.alloc,l:'Zuweisungen'},{col:ALLOC_COMMIT_COLORS.commit,l:'Zusagen'}]
+    legend.innerHTML=[{col:ALLOC_COMMIT_COLORS.alloc,l:'Zugewiesene Hilfe'},{col:ALLOC_COMMIT_COLORS.commit,l:'Noch zuzuweisende Hilfe'}]
       .map(it=>`<span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;background:${it.col};border-radius:2px;"></span>${it.l}</span>`).join('');
   } else {
     legend.style.display='none';
@@ -3063,7 +3065,7 @@ document.addEventListener('fullscreenchange',()=>{
 
     const leftPad = 2; // blank columns reserved to the left of the table
     const topPad  = 2; // blank rows reserved above the title
-    const dataColCount = 8; // Country, Date, Total, Financial, Military, Humanitarian, Commitments, % of 2021 GDP
+    const dataColCount = 8; // Country, Date, Total, Financial, Military, Humanitarian, Aid to be Allocated, % of 2021 GDP
     const firstCol = leftPad + 1;
     const lastCol  = leftPad + dataColCount;
     const logoCol  = lastCol + 1; // dedicated blank column so the logo never overlaps title text
@@ -3102,7 +3104,7 @@ document.addEventListener('fullscreenchange',()=>{
     ws.getRow(topPad + 5).height = 14;
     ws.addRow([]);
 
-    const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Land', 'Datum', 'Gesamthilfe (Mrd. €)', 'Finanzielle Hilfe (Mrd. €)', 'Militärische Hilfe (Mrd. €)', 'Humanitäre Hilfe (Mrd. €)', 'Zusagen (Mrd. €)', '% des BIP 2021']);
+    const headerRow = ws.addRow([...Array(leftPad).fill(null), 'Land', 'Datum', 'Gesamthilfe (Mrd. €)', 'Finanzielle Hilfe (Mrd. €)', 'Militärische Hilfe (Mrd. €)', 'Humanitäre Hilfe (Mrd. €)', 'Noch zuzuweisende Hilfe (Mrd. €)', '% des BIP 2021']);
     headerRow.eachCell({ includeEmpty: false }, cell => {
       cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3A6DC5' } };
@@ -3287,8 +3289,8 @@ document.addEventListener('fullscreenchange',()=>{
       desc: `<p><strong>Humanitäre Hilfe</strong> umfasst die bilateralen Zuweisungen an die Ukraine. Nicht enthalten sind private Spenden, Unterstützung für Geflüchtete außerhalb der Ukraine sowie Hilfen internationaler Organisationen. Finanzielle Zuweisungen, die ausdrücklich für militärische Zwecke und Waffenkäufe bestimmt sind, werden als militärische Hilfe gezählt.</p>`
     },
     alloc_commit: {
-      label: 'Zuweisungen + Zusagen',
-      desc: `<p><strong>Zuweisungen</strong> sind Hilfen, die konkret einem bestimmten Projekt, Sektor oder Empfänger zugeordnet wurden. <strong>Zusagen</strong> sind Zusagen künftiger Hilfen, die noch nicht zugewiesen wurden. Beide sind bilaterale Angaben für die Ukraine und enthalten weder private Spenden noch Unterstützung für Geflüchtete außerhalb der Ukraine oder Hilfen internationaler Organisationen.</p>`
+      label: 'Zugewiesene + noch zuzuweisende Hilfe',
+      desc: `<p><strong>Zugewiesene Hilfe</strong> sind Hilfen, die konkret einem bestimmten Projekt, Sektor oder Empfänger zugeordnet wurden. <strong>Noch zuzuweisende Hilfe</strong> ist der zugesagte, aber noch nicht zugewiesene Rest. Beide zusammen ergeben die gesamten Zusagen. Beide sind bilaterale Angaben für die Ukraine und enthalten weder private Spenden noch Unterstützung für Geflüchtete außerhalb der Ukraine oder Hilfen internationaler Organisationen.</p>`
     }
   };
 
