@@ -206,13 +206,15 @@ html, body { height: 100%; }
   background: rgba(246,242,232,0.95);
   border-radius: 3px;
   padding: 6px 11px;
-  font-size: 0.86rem; color: #888;
+  /* Sized and inked like the line card's .line-legend so the two cards read
+     as one type scale; the phone size/colour is put back in responsive.css. */
+  font-size: 0.95rem; color: var(--black);
   white-space: nowrap;
   pointer-events: none;
 }
 .bar-legend .legend-item { display: flex; align-items: center; gap: 6px; }
 .bar-legend .legend-swatch {
-  display: inline-block; width: 12px; height: 12px;
+  display: inline-block; width: 13px; height: 13px;
   border-radius: 2px; flex-shrink: 0;
 }
 .footer-icon-btn:hover { background: #ede8de; color: var(--black); }

@@ -2632,10 +2632,12 @@ async function copyChartAsImage(){
   `;
   const logoWrap = document.createElement('div');
   logoWrap.style.cssText = `position:absolute;top:18px;right:18px;height:${EXPORT_STYLE.logoHeight}px;display:flex;align-items:center;`;
+  /* A PNG with both dimensions in px, not a clone of the live SVG <img>:
+     WebKit and Blink disagree about an SVG image with an `auto` dimension
+     inside a box html2canvas has measured, and on iOS the logo came out
+     cropped to a couple of orange bars. See USTExport.logoElement. */
   const logoImg = document.querySelector('.kiel-logo img');
-  const logoClone = logoImg.cloneNode(true);
-  logoClone.style.cssText = 'height:100%;width:auto;display:block;';
-  logoWrap.appendChild(logoClone);
+  logoWrap.appendChild(await USTExport.logoElement(logoImg, {height: EXPORT_STYLE.logoHeight}));
   header.appendChild(logoWrap);
 
   /* Screenshots always use the generic MAP_INITIAL_ZOOM framing rather than
@@ -2910,18 +2912,11 @@ async function copyChartAsImage(){
     }
 
     const canvas = await html2canvas(card, {backgroundColor:'#f6f1e7', scale:EXPORT_STYLE.pixelRatio, useCORS:true});
-    await new Promise((resolve,reject)=>{
-      canvas.toBlob(async blob=>{
-        if(!blob){ reject(new Error('toBlob failed')); return; }
-        try{
-          await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
-          resolve();
-        }catch(err){ reject(err); }
-      }, 'image/png');
-    });
-    toast('Bild der Grafik kopiert!');
-  }catch(err){
-    toast('Bild konnte nicht kopiert werden');
+    /* The blob goes back to the caller instead of being written here:
+       deliverPng handed a promise for it to the clipboard before this
+       capture started, and reports the outcome — including a failure in
+       here, which now propagates instead of being swallowed. */
+    return await USTExport.canvasToBlob(canvas);
   }finally{
     document.body.removeChild(card);
   }
@@ -2942,16 +2937,28 @@ async function copyChartAsImage(){
    Nothing about the selection is touched, so the image matches what is on
    screen; only the layout it is drawn in changes. */
 function copyChartAsImageDesktop(){
-  if(!window.USTExport) return copyChartAsImage();
+  /* Called straight from the click handler, and reaches deliverPng before
+     anything yields: WebKit only keeps the tap's clipboard permission alive
+     if ClipboardItem is constructed in that same task, and the capture below
+     takes seconds. Awaiting anything ahead of it breaks copying on iOS while
+     still working in Chrome's device-emulation view. See export-desktop.js. */
   const size = USTExport.DESKTOP.explorer;
-  return USTExport.withDesktopLayout({
-    width: size.width,
-    height: size.height,
-    relayout(){
-      if(typeof window.__ustApplyScale === 'function') window.__ustApplyScale();
-      if(typeof window.__ustRelayoutActivePanel === 'function') window.__ustRelayoutActivePanel();
-    }
-  }, copyChartAsImage);
+  USTExport.deliverPng(function(){
+    return USTExport.withDesktopLayout({
+      width: size.width,
+      height: size.height,
+      relayout(){
+        if(typeof window.__ustApplyScale === 'function') window.__ustApplyScale();
+        if(typeof window.__ustRelayoutActivePanel === 'function') window.__ustRelayoutActivePanel();
+      }
+    }, copyChartAsImage);
+  }, {
+    fileStem: 'ust_datenexplorer',
+    onStatus: toast,
+    copied:   'Bild der Grafik kopiert!',
+    saved:    'Bild der Grafik gespeichert!',
+    failed:   'Bild konnte nicht kopiert werden'
+  });
 }
 
 document.getElementById('opt-image').addEventListener('click',()=>{

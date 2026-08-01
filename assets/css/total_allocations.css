@@ -139,6 +139,12 @@ html, body { height: 100%; }
 /* chart area */
 .line-chart-wrap { flex: 1; padding: 0rem 0rem 0.4rem; overflow: hidden; min-height: 0; position: relative; }
 .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+/* Series key sits directly under the plot and is read at a glance, so it runs
+   a step larger than chart-base's default (0.82rem) — matched to the
+   by-donor card's .bar-legend so the two cards read as one type scale. The
+   phone size is put back in responsive.css. */
+.line-legend { font-size: 0.95rem; }
+.line-legend .legend-dot { width: 11px; height: 11px; }
 /* tooltip */
 #chart-tooltip {
   position: fixed; pointer-events: none;

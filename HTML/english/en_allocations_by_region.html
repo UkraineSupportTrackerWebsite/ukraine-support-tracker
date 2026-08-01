@@ -519,8 +519,14 @@ function barPath(x, y, w, h, r){
 
    Matches responsive.css's 560px widget breakpoint. */
 const NARROW_CARD = 560;
-const PAD_B = 65.5;
-const LABEL_CLEARANCE = 4;    // breathing room under the deepest region name
+const PAD_B = 57.8;
+/* Breathing room under the deepest region name, on a narrow card only. Sized
+   so the name clears not just the action buttons but the soft top edge of
+   their blurred backdrop, which bleeds 6px above them (BLEED.top in
+   chart-layout.js). At 4 the name cleared the buttons by 7px but the
+   backdrop by under 2, close enough that a device whose font metrics run a
+   hair taller put a wrapped two-line name back into the blur. */
+const LABEL_CLEARANCE = 7;
 let narrowPadB = PAD_B;       // measured from the drawn names, once per width
 let remeasuringPadB = false;
 
@@ -532,7 +538,8 @@ function renderChart(){
   const wrap = document.querySelector('.bar-body');
   const cs = getComputedStyle(wrap);
   const W = (wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) || 530;
-  const H = (wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) || 370;
+  const cssPadBottom = parseFloat(cs.paddingBottom) || 0;
+  const H = (wrap.clientHeight - parseFloat(cs.paddingTop) - cssPadBottom) || 370;
   /* t is set so the unit label sits at the same height as the line
      chart's '€ billion' label. Both cards now stack identically above their
      svg — a 76.5px header plus a 46.06px controls bar (0.98rem button at
@@ -548,8 +555,14 @@ function renderChart(){
      That card stacks, measured up from its bottom edge: its legend row
      (0.82rem x 1.5 line-height = 17.22px, plus 0.55rem padding-bottom =
      7.7px), its chart wrap's 0.4rem bottom padding (5.6px), and its own
-     35px bottom plot padding — 65.5px in total. Keep these in sync if
-     en_total_allocations.html's legend or plot padding changes. On a narrow
+     35px bottom plot padding — 65.5px in total. 7.7 of that is carried by
+     .bar-body's own padding-bottom rather than by this number (see the note
+     on .bar-body in allocations_by_region.css: it has to match the line
+     legend's padding, or the two cards' footer bands come out different
+     sizes and the baselines part company below a 700px card). 65.5 - 7.7 =
+     57.8 here, and the two together still put the baseline in the same
+     place. Keep these in sync if en_total_allocations.html's legend or plot
+     padding changes. On a narrow
      card that alignment has nothing to align to and b is trimmed instead —
      see NARROW_CARD above. */
   const narrow = W < NARROW_CARD;
@@ -653,7 +666,18 @@ function renderChart(){
   if (narrow && !remeasuringPadB) {
     const baseline = svg.node().getBoundingClientRect().top + pad.t + iH;
     const deepest = Math.max(...axisLabels.map(n => n.getBoundingClientRect().bottom));
-    const needed = Math.ceil(deepest - baseline + LABEL_CLEARANCE);
+    /* Measured against the svg's own content box, NOT against that box plus
+       .bar-body's padding-bottom. The padding is what buys this card the same
+       footer band as the line chart (see the note on .bar-body in
+       allocations_by_region.css), and applyFooterBand() discounts it on the
+       understanding that it is empty — reserve `occluder + gap - ownPad` and
+       the visible content still clears the occluder by `gap`, but only if
+       nothing is drawn in `ownPad`. #bar-svg is overflow:visible, so letting
+       the deepest name spend that 7.7px put a wrapped two-line region label
+       back under the buttons on a phone, which is the collision the band
+       exists to prevent. The names stay inside the svg; the padding stays
+       bare. */
+    const needed = Math.max(0, Math.ceil(deepest - baseline + LABEL_CLEARANCE));
     if (needed > 0 && Math.abs(needed - narrowPadB) > 1) {
       narrowPadB = needed;
       remeasuringPadB = true;
@@ -1157,10 +1181,12 @@ async function copyChartAsImage(){
   `;
   const logoWrap = document.createElement('div');
   logoWrap.style.cssText = `position:absolute;top:20px;right:22px;width:${EXPORT_STYLE.logoWidth}px;display:flex;align-items:center;`;
+  /* A PNG with both dimensions in px, not a clone of the live SVG <img>:
+     WebKit and Blink disagree about an SVG image with an `auto` dimension
+     inside a box html2canvas has measured, and on iOS the logo came out
+     cropped to a couple of orange bars. See USTExport.logoElement. */
   const logoImg = document.querySelector('.kiel-logo img');
-  const logoClone = logoImg.cloneNode(true);
-  logoClone.style.cssText = 'width:100%;height:auto;display:block;';
-  logoWrap.appendChild(logoClone);
+  logoWrap.appendChild(await USTExport.logoElement(logoImg, {width: EXPORT_STYLE.logoWidth}));
   header.appendChild(logoWrap);
 
   const panelClone = panel.cloneNode(true);
@@ -1246,26 +1272,11 @@ async function copyChartAsImage(){
     }
 
     const canvas = await html2canvas(card, {backgroundColor:'#f6f1e7', scale:EXPORT_STYLE.pixelRatio, useCORS:true});
-    await new Promise((resolve,reject)=>{
-      canvas.toBlob(async blob=>{
-        if(!blob){ reject(new Error('toBlob failed')); return; }
-        try{
-          await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
-          resolve();
-        }catch(err){
-          try{
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = 'ust_allocations_by_region.png'; a.click();
-            URL.revokeObjectURL(url);
-            resolve();
-          }catch(e2){ reject(e2); }
-        }
-      }, 'image/png');
-    });
-    showCopyToast('Diagram image copied!');
-  }catch(err){
-    showCopyToast('Could not copy image');
+    /* The blob goes back to the caller instead of being written here:
+       deliverPng handed a promise for it to the clipboard before this
+       capture started, and reports the outcome — including a failure in
+       here, which now propagates instead of being swallowed. */
+    return await USTExport.canvasToBlob(canvas);
   }finally{
     document.body.removeChild(card);
   }
@@ -1285,12 +1296,24 @@ document.getElementById('opt-image').addEventListener('click', () => {
    at its canonical desktop size first, off-screen, so every device produces
    the same image. See ../../assets/export-desktop.js. */
 function copyChartAsImageDesktop(){
-  if(!window.USTExport) return copyChartAsImage();
+  /* Called straight from the click handler, and reaches deliverPng before
+     anything yields: WebKit only keeps the tap's clipboard permission alive
+     if ClipboardItem is constructed in that same task, and the capture below
+     takes seconds. Awaiting anything ahead of it breaks copying on iOS while
+     still working in Chrome's device-emulation view. See export-desktop.js. */
   const size = USTExport.DESKTOP.tile;
-  return USTExport.withDesktopLayout(
-    {width: size.width, height: size.height,
-     relayout(){ if(typeof renderChart === 'function') renderChart(); }},
-    copyChartAsImage);
+  USTExport.deliverPng(function(){
+    return USTExport.withDesktopLayout(
+      {width: size.width, height: size.height,
+       relayout(){ if(typeof renderChart === 'function') renderChart(); }},
+      copyChartAsImage);
+  }, {
+    fileStem: 'ust_allocations_by_region',
+    onStatus: showCopyToast,
+    copied:   'Diagram image copied!',
+    saved:    'Diagram image saved!',
+    failed:   'Could not copy image'
+  });
 }
 
 /* ════════════════════════════════════

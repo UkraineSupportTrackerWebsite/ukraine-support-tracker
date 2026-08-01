@@ -156,9 +156,202 @@ window.USTExport = (function () {
     return document.documentElement.classList.contains('exporting-desktop');
   }
 
+  /* ══════════════════════════════════════════════════════════════════
+     THE KIEL LOGO IN AN EXPORTED CARD
+
+     The header logo is the one image in the card that is not already a
+     raster. Every chart SVG is rasterized to a PNG before capture
+     (svgToPngImage in the pages); the logo used to be a straight clone of
+     the live <img src="Kiel Institut Logo.svg"> with width:100%;height:auto,
+     handed to html2canvas as an SVG.
+
+     WebKit does not resolve that the way Blink does. An SVG image whose
+     height is `auto` inside a box html2canvas has measured itself comes out
+     cropped and mis-scaled — on an iPhone the logo rendered as two orange
+     rectangles. It is not worth chasing which of the two is "right": the
+     fix is to not give html2canvas an SVG at all.
+
+     So the logo is rasterized here, once per page load, at a fixed pixel
+     width with the destination size passed explicitly to drawImage, and the
+     card gets a PNG <img> with both width and height in px. That path is
+     identical in every engine.
+  ══════════════════════════════════════════════════════════════════ */
+
+  /* Wide enough for the largest use (260 CSS px) at pixelRatio 2, with room
+     to spare — the logo is a few kB of paths, so oversampling costs nothing. */
+  const LOGO_RASTER_WIDTH = 1200;
+
+  /* Intrinsic size of Kiel Institut Logo.svg, used only if an engine reports
+     naturalWidth/naturalHeight of 0 for an SVG image. */
+  const LOGO_RATIO = 634.53 / 1818.02;
+
+  let logoRaster = null;   // Promise<{url, ratio}>, resolved once and reused
+
+  function rasterizeLogo(src) {
+    if (logoRaster) return logoRaster;
+    logoRaster = new Promise(function (resolve, reject) {
+      const img = new Image();
+      img.onload = function () {
+        const ratio = (img.naturalWidth && img.naturalHeight)
+          ? img.naturalHeight / img.naturalWidth
+          : LOGO_RATIO;
+        const w = LOGO_RASTER_WIDTH;
+        const h = Math.round(w * ratio);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        /* Explicit destination width and height: the whole point. Nothing is
+           left for the engine to infer from an intrinsic ratio. */
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        /* Throws if the canvas is tainted — opening the page over file://
+           taints it, so the caller keeps the SVG in that case. */
+        resolve({ url: canvas.toDataURL('image/png'), ratio: ratio });
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
+    /* A failure must not be cached as a permanent one: a later export gets a
+       fresh attempt rather than inheriting a rejected promise. */
+    logoRaster.catch(function () { logoRaster = null; });
+    return logoRaster;
+  }
+
+  /**
+   * An <img> of the Kiel logo for an export card, sized in explicit px.
+   *
+   * @param {HTMLImageElement} liveImg  the page's own .kiel-logo img
+   * @param {Object} box  {width} or {height} in export px — the other side
+   *        is derived from the logo's aspect ratio.
+   * @returns {Promise<HTMLImageElement>} already loaded, ready to append
+   */
+  async function logoElement(liveImg, box) {
+    let url   = liveImg.src;
+    let ratio = LOGO_RATIO;
+    try {
+      const png = await rasterizeLogo(liveImg.src);
+      url   = png.url;
+      ratio = png.ratio;
+    } catch (e) {
+      /* Rasterizing failed (file://, or the SVG did not load). Fall back to
+         the SVG — but still with both dimensions set explicitly, which is
+         the part WebKit actually needs. */
+    }
+    const w = box.width  != null ? box.width  : Math.round(box.height / ratio);
+    const h = box.height != null ? box.height : Math.round(box.width  * ratio);
+
+    const img = document.createElement('img');
+    img.alt = liveImg.alt || '';
+    img.style.cssText = 'width:' + w + 'px;height:' + h + 'px;display:block;';
+    img.src = url;
+    /* html2canvas skips images that are not complete when it walks the tree. */
+    try { await img.decode(); } catch (e) {}
+    return img;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     PUTTING THE PNG WHERE THE READER ASKED FOR IT
+
+     WebKit only lets a page write to the clipboard while the tap that asked
+     for it is still the current task. Building the image takes seconds —
+     two layout passes off-screen, html2canvas, then toBlob — so by the time
+     the old code reached navigator.clipboard.write() the user activation was
+     long gone and WebKit threw NotAllowedError. Every "copy chart as image"
+     failed on an actual iPhone.
+
+     It did not fail in Chrome's device-emulation view on a Mac, because that
+     is still Chrome's clipboard implementation and Chrome does not enforce
+     this. Phone-view testing cannot catch this class of bug.
+
+     The supported way to do slow work and still write to the clipboard is to
+     hand ClipboardItem a *Promise* for the blob and call write() immediately,
+     with no await in between. WebKit then holds the activation open until the
+     promise settles. That is what deliverPng does, so it must be called
+     directly from the click handler — awaiting anything before it puts the
+     bug straight back.
+  ══════════════════════════════════════════════════════════════════ */
+
+  /** canvas.toBlob as a promise. Pages use this to end their capture. */
+  function canvasToBlob(canvas, type) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (blob) resolve(blob);
+        else reject(new Error('toBlob failed'));
+      }, type || 'image/png');
+    });
+  }
+
+  /**
+   * Copy the captured PNG to the clipboard, or save it if that is refused.
+   *
+   * MUST be called synchronously from the click handler — see above.
+   *
+   * @param {Function} makeBlob  starts the capture, returns Promise<Blob>.
+   *        Called once; both delivery paths share the one result.
+   * @param {Object} opts
+   *        fileStem  {string}   download name, without .png
+   *        onStatus  {Function} shows a toast
+   *        copied/saved/failed {string} the three messages
+   */
+  function deliverPng(makeBlob, opts) {
+    opts = opts || {};
+    const status = opts.onStatus || function () {};
+    const de     = document.documentElement.lang === 'de';
+    const copied = opts.copied || (de ? 'Bild kopiert!' : 'Image copied!');
+    const saved  = opts.saved  || (de ? 'Bild gespeichert!' : 'Image saved!');
+    const failed = opts.failed || (de ? 'Bild konnte nicht kopiert werden'
+                                      : 'Could not copy image');
+
+    let blobPromise;
+    try { blobPromise = Promise.resolve(makeBlob()); }
+    catch (e) { blobPromise = Promise.reject(e); }
+
+    /* The blob promise is consumed twice at most and may be handed to
+       ClipboardItem, which reports its own failure. This handle keeps a
+       capture error from also surfacing as an unhandled rejection. */
+    blobPromise.catch(function () {});
+
+    function save() {
+      return blobPromise.then(function (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (opts.fileStem || 'chart') + '.png';
+        a.rel = 'noopener';
+        /* iOS Safari ignores the download attribute and opens the PNG in its
+           previewer instead, with a share button — different from a desktop
+           download, but it does get the reader the image. */
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        /* Not revoked synchronously: WebKit reads the blob URL after click()
+           returns, and pulling it out from under the download cancels it. */
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+        status(saved);
+      });
+    }
+
+    const canClipboard = !!(window.ClipboardItem &&
+                            navigator.clipboard &&
+                            navigator.clipboard.write);
+    if (!canClipboard) {
+      return save().catch(function () { status(failed); });
+    }
+
+    /* No await before this line. */
+    return navigator.clipboard
+      .write([new ClipboardItem({ 'image/png': blobPromise })])
+      .then(function () { status(copied); })
+      .catch(function () {
+        return save().catch(function () { status(failed); });
+      });
+  }
+
   return {
     DESKTOP: DESKTOP,
     withDesktopLayout: withDesktopLayout,
-    isExporting: isExporting
+    isExporting: isExporting,
+    logoElement: logoElement,
+    canvasToBlob: canvasToBlob,
+    deliverPng: deliverPng
   };
 })();

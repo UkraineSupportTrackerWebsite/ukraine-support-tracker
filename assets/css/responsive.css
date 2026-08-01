@@ -126,6 +126,13 @@
     justify-content: flex-start;
     white-space: normal;
   }
+  /* Both series keys were stepped up on desktop (see total_allocations.css
+     and allocations_by_donor.css). At phone width the footer row and the
+     plot are already tight, so keep the sizes they had before. */
+  html:not(.exporting-desktop) .line-legend { font-size: 0.82rem; }
+  html:not(.exporting-desktop) .line-legend .legend-dot { width: 9px; height: 9px; }
+  html:not(.exporting-desktop) .bar-legend { font-size: 0.86rem; color: #888; }
+  html:not(.exporting-desktop) .bar-legend .legend-swatch { width: 12px; height: 12px; }
 
   /* ── popovers ────────────────────────────────────────────────────
      The min-width floors (190px on the dropdowns, 210px on the share menu)

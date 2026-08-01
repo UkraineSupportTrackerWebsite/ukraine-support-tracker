@@ -137,9 +137,19 @@ html, body { height: 100%; }
    x-axis labels clear of the footer icon cluster, which floats over the
    bottom-right of the card.
 ─────────────────────────────────────────────────────────────── */
+/* The 0.55rem at the bottom is the line chart's .line-legend padding-bottom,
+   repeated here so the two cards' footer bands come out the same size.
+   USTLayout.applyFooterBand() reserves `occluder + gap - the anchor's own
+   padding-bottom`, and the anchor is whatever element precedes .chart-footer:
+   the legend on the line chart, this pane here. With 0 padding this card
+   discounted nothing, reserved 7px more than its neighbour, and its zero
+   baseline sat that much higher — visible only below the 700px card width at
+   which a band is applied at all, which is exactly the side-by-side case the
+   alignment exists for. PAD_B in the page is 0.55rem shorter to match, so the
+   total below the baseline is unchanged. */
 .bar-body {
   flex: 1;
-  padding: 0rem 0rem 0rem;
+  padding: 0rem 0rem 0.55rem;
   min-height: 0;
   position: relative;
 }
