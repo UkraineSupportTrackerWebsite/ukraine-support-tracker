@@ -465,9 +465,10 @@ function showCopyToast(msg){
 }
 
 document.getElementById('opt-link').addEventListener('click', () => {
-  navigator.clipboard.writeText(window.location.href).catch(()=>{});
+  /* The published tracker page, not this iframe's own URL. Called
+     synchronously: writeText needs the tap's activation too. */
+  USTExport.copyLink({onStatus: showCopyToast, copied: 'Link kopiert!', failed: 'Link konnte nicht kopiert werden'});
   document.getElementById('share-dropdown').classList.remove('open');
-  showCopyToast('Link kopiert!');
 });
 
 /* CSS gives shapes their stroke/fill via stylesheet rules that won't travel with a
@@ -494,6 +495,18 @@ function svgToPngImage(svgEl, w, h){
     inlineComputedStyles(svgEl, clone);
     clone.setAttribute('width', w);
     clone.setAttribute('height', h);
+    /* …and again as CSS, because a `width` / `height` in the element's own
+       style attribute beats the presentation attributes just set — and
+       inlineComputedStyles copies that attribute onto the clone. #axis-svg
+       carries one (renderChart pins it to the scroller's width with d3
+       .style), so the serialized SVG declared an intrinsic width of the LIVE
+       card while the <img> it became was stretched to export width: the unit
+       label ("€ billion" / "Mrd. €") came out horizontally stretched and
+       vertically half-size, while every other chart SVG — none of which has an
+       inline width — rasterized correctly. Setting both leaves nothing for the
+       engine to choose between. */
+    clone.style.setProperty('width', w + 'px');
+    clone.style.setProperty('height', h + 'px');
     if(!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
     const xml = new XMLSerializer().serializeToString(clone);
     const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
@@ -754,6 +767,21 @@ function copyChartAsImageDesktop(){
 (function setupResponsiveReflow(){
   const ASPECT = 496 / 565;      // original card proportions
   const MIN_H = 360, MAX_H = 900;
+  /* Phone only. Same 560px question responsive.css asks, so the layout there
+     and the height asked for here can never disagree about which device this
+     is: a phone in portrait is 320-430 CSS px and matches, iPad portrait is
+     768 and landscape 1024 and neither does. Excluded during an image export,
+     where USTExport stages the card at desktop width behind
+     .exporting-desktop and the desktop layout applies. */
+  const isPhoneCard = () => window.matchMedia('(max-width: 560px)').matches
+    && !document.documentElement.classList.contains('exporting-desktop');
+
+  /* The phone layout puts the legend and the buttons side by side rather than
+     stacked (see the phone block in responsive.css), so the bottom of the card
+     costs one row instead of two. ASPECT alone would spend the saving on a
+     shorter card; this keeps the card and gives the pixels to the plot, which
+     at 360 was the smallest thing on the screen. */
+  const PHONE_MIN_H = 430;
   const wrap = document.getElementById('explorer-wrap');
   if(!wrap) return;
 
@@ -764,7 +792,19 @@ function copyChartAsImageDesktop(){
        the last axis label. Runs standalone too — the collision is identical
        either way — and the reserved pixels are added back to the height we
        ask the embedder for, so clearing the buttons costs the plot nothing. */
-    const band = window.USTLayout ? USTLayout.applyFooterBand(wrap) : 0;
+    /* Not on a phone: there the buttons sit beside the legend in the grid
+       rather than floating over it, so there is nothing to reserve against.
+       Applying it anyway would push the legend up out of the row it shares
+       with the buttons and reopen the gap this layout closes. The inline
+       style is cleared rather than left alone, or a card that started wide
+       and was narrowed would keep the last band it was given. */
+    let band = 0;
+    if(isPhoneCard()){
+      const legend = document.getElementById('line-legend');
+      if(legend) legend.style.marginBottom = '';
+    } else if(window.USTLayout){
+      band = USTLayout.applyFooterBand(wrap);
+    }
     if(window.parent === window) return;
     /* Staged off-screen at desktop size for an image export (USTExport): the
        height that box asks for is not the height this viewport wants, and
@@ -780,7 +820,8 @@ function copyChartAsImageDesktop(){
        height as the aspect ratio dictates means the plot gives up those
        pixels instead, and the buttons sit directly under the content. */
     void band;
-    const h = Math.round(Math.max(MIN_H, Math.min(MAX_H, w * ASPECT)));
+    const h = Math.round(Math.max(isPhoneCard() ? PHONE_MIN_H : MIN_H,
+                                  Math.min(MAX_H, w * ASPECT)));
     if(h === lastSent) return;        // avoid a resize<->postMessage feedback loop
     lastSent = h;
     window.parent.postMessage({type:'ust-total-allocations-height', height:h}, '*');

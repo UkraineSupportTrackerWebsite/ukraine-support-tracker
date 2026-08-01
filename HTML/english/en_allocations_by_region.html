@@ -1074,9 +1074,10 @@ function showCopyToast(msg){
 }
 
 document.getElementById('opt-link').addEventListener('click', () => {
-  navigator.clipboard.writeText(window.location.href).catch(()=>{});
+  /* The published tracker page, not this iframe's own URL. Called
+     synchronously: writeText needs the tap's activation too. */
+  USTExport.copyLink({onStatus: showCopyToast, copied: 'Link copied!', failed: 'Could not copy link'});
   document.getElementById('share-dropdown').classList.remove('open');
-  showCopyToast('Link copied!');
 });
 
 /* CSS gives shapes their stroke/fill via stylesheet rules that won't travel with a
@@ -1103,6 +1104,18 @@ function svgToPngImage(svgEl, w, h){
     inlineComputedStyles(svgEl, clone);
     clone.setAttribute('width', w);
     clone.setAttribute('height', h);
+    /* …and again as CSS, because a `width` / `height` in the element's own
+       style attribute beats the presentation attributes just set — and
+       inlineComputedStyles copies that attribute onto the clone. #axis-svg
+       carries one (renderChart pins it to the scroller's width with d3
+       .style), so the serialized SVG declared an intrinsic width of the LIVE
+       card while the <img> it became was stretched to export width: the unit
+       label ("€ billion" / "Mrd. €") came out horizontally stretched and
+       vertically half-size, while every other chart SVG — none of which has an
+       inline width — rasterized correctly. Setting both leaves nothing for the
+       engine to choose between. */
+    clone.style.setProperty('width', w + 'px');
+    clone.style.setProperty('height', h + 'px');
     if(!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
     const xml = new XMLSerializer().serializeToString(clone);
     const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
@@ -1141,14 +1154,23 @@ function svgToPngImage(svgEl, w, h){
                       padding, 380px) must stay wide enough that the title
                       doesn't run underneath the logo.
    - footerFontSize / footerPadding : the "Data source: …" note at the bottom.
-   - chartBottomTrim: px of the rasterized chart cropped off its bottom edge.
+   - chartBottomMargin: breathing room left under the deepest thing the chart
+                      draws (the region names), in SVG user units.
                       renderChart()'s pad.b reserves far more room under the
-                      zero baseline than the one-line region names need — it is
+                      zero baseline than those one-line names need — it is
                       sized so the baseline lines up with en_total_allocations.html
                       when the two cards sit side by side, and to clear the
                       footer icon cluster. The export drops both constraints, so
                       that reserve would otherwise show up as dead space between
                       the x-axis labels and the data-source note.
+
+                      What gets cropped is MEASURED, not a fixed number of
+                      export px: USTExport.bottomReserve() asks the live SVG
+                      for the bounding box of what it drew and trims whatever
+                      sits below it. A fixed number was only ever right for one
+                      set of live dimensions — change any height feeding pad.b
+                      or the card's aspect and it starts cutting through the
+                      region names instead of the dead space under them.
 
    The chart itself needs no export sizes: every mark and every label lives
    inside one SVG, so rasterizing that SVG at export width scales the bars,
@@ -1162,7 +1184,7 @@ const EXPORT_STYLE = {
   headerPadding:    '20px 380px 16px 22px',
   footerFontSize:   30,
   footerPadding:    '16px 22px',
-  chartBottomTrim:  110,
+  chartBottomMargin: 12,
 };
 
 async function copyChartAsImage(){
@@ -1256,10 +1278,13 @@ async function copyChartAsImage(){
         img.style.height = Math.round(targetH) + 'px';
         img.style.display = 'block';
         if(svg.getAttribute('class')) img.className = svg.getAttribute('class');
-        /* Crop the chart's unused bottom reserve (see chartBottomTrim) by
-           dropping the raster into a shorter clipping box, so the image keeps
-           its scale and only loses empty surface under the x-axis labels. */
-        const trim = svg.id === 'bar-svg' ? EXPORT_STYLE.chartBottomTrim : 0;
+        /* Crop the chart's unused bottom reserve — measured from what the
+           live chart actually drew (see chartBottomMargin) — by dropping the
+           raster into a shorter clipping box, so the image keeps its scale and
+           only loses empty surface under the x-axis labels. */
+        const trim = svg.id === 'bar-svg'
+          ? USTExport.bottomReserve(liveSvg, targetH, EXPORT_STYLE.chartBottomMargin)
+          : 0;
         if(trim > 0 && targetH - trim > 40){
           const clip = document.createElement('div');
           clip.style.cssText = `width:${Math.round(targetW)}px;height:${Math.round(targetH - trim)}px;overflow:hidden;`;

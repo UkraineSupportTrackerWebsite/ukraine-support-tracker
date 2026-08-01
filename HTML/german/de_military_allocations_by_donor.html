@@ -1042,9 +1042,10 @@ function showCopyToast(msg){
 }
 
 document.getElementById('opt-link').addEventListener('click', () => {
-  navigator.clipboard.writeText(window.location.href).catch(()=>{});
+  /* The published tracker page, not this iframe's own URL. Called
+     synchronously: writeText needs the tap's activation too. */
+  USTExport.copyLink({onStatus: showCopyToast, copied: 'Link kopiert!', failed: 'Link konnte nicht kopiert werden'});
   document.getElementById('share-dropdown').classList.remove('open');
-  showCopyToast('Link kopiert!');
 });
 
 /* CSS gives shapes their stroke/fill via stylesheet rules that won't travel with a
@@ -1071,6 +1072,18 @@ function svgToPngImage(svgEl, w, h){
     inlineComputedStyles(svgEl, clone);
     clone.setAttribute('width', w);
     clone.setAttribute('height', h);
+    /* …and again as CSS, because a `width` / `height` in the element's own
+       style attribute beats the presentation attributes just set — and
+       inlineComputedStyles copies that attribute onto the clone. #axis-svg
+       carries one (renderChart pins it to the scroller's width with d3
+       .style), so the serialized SVG declared an intrinsic width of the LIVE
+       card while the <img> it became was stretched to export width: the unit
+       label ("€ billion" / "Mrd. €") came out horizontally stretched and
+       vertically half-size, while every other chart SVG — none of which has an
+       inline width — rasterized correctly. Setting both leaves nothing for the
+       engine to choose between. */
+    clone.style.setProperty('width', w + 'px');
+    clone.style.setProperty('height', h + 'px');
     if(!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
     const xml = new XMLSerializer().serializeToString(clone);
     const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
@@ -1093,6 +1106,24 @@ function svgToPngImage(svgEl, w, h){
   });
 }
 
+/* Drop `px` px off the bottom of a rasterized chart — `px` and `cssH` are
+   both in the image's CSS size, not its device pixels. Returns a new <img>,
+   already loaded and ready for html2canvas. */
+function cropBottom(img, cssH, px){
+  return new Promise((resolve, reject)=>{
+    const natW = img.naturalWidth, natH = img.naturalHeight;
+    const keep = Math.max(1, Math.round(natH * (1 - px / cssH)));
+    if(!natW || !natH || keep >= natH) return resolve(img);
+    const canvas = document.createElement('canvas');
+    canvas.width = natW; canvas.height = keep;
+    canvas.getContext('2d').drawImage(img, 0, 0, natW, keep, 0, 0, natW, keep);
+    const out = new Image();
+    out.onload = ()=>resolve(out);
+    out.onerror = reject;
+    out.src = canvas.toDataURL('image/png');
+  });
+}
+
 /* ═════════════════════════════════════════════════════════════════════
    IMAGE-EXPORT STYLE SETTINGS — tweak these to change the exported PNG.
 
@@ -1109,10 +1140,13 @@ function svgToPngImage(svgEl, w, h){
                       doesn't run underneath the logo.
    - footerFontSize / footerPadding : the "Data source: …" note at the bottom.
 
-   Note there is no bottom trim here: unlike the region chart, the plot's
-   bottom padding is only BOTTOM_PAD (which keeps the last bar clear of the
-   footer icons), and the export drops the icons — so trimming it would clip
-   the last bar rather than remove dead space. The export renders the FULL
+   The bottom trim is not a number here: BOTTOM_PAD keeps the last bar clear
+   of the footer icons on screen, and the export drops the icons, so it is
+   dead space — but a hard-coded trim would start clipping the last bar the
+   moment any height upstream of the plot changed. USTExport.bottomReserve
+   measures it from the chart's own bbox instead, and the capture loop crops
+   exactly that much. Same for the strip USTLayout.applyFooterBand reserves
+   under .bar-body, which the export zeroes. The export renders the FULL
    ranking, including the rows that scroll out of view on screen.
    ═════════════════════════════════════════════════════════════════════ */
 const EXPORT_STYLE = {
@@ -1169,6 +1203,12 @@ async function copyChartAsImage(){
   const clonedBody = panelClone.querySelector('.bar-body');
   clonedBody.style.flex = 'none';
   clonedBody.style.height = 'auto';
+  /* USTLayout.applyFooterBand reserves a strip below the plot so the floating
+     info / download / share buttons clear the legend — on a card narrower than
+     700px, which the 631px export staging box is. Those buttons are stripped
+     from the export, so the reservation would come out as a bare band between
+     the last bar and the legend. */
+  clonedBody.style.marginBottom = '0';
   const clonedScroll = panelClone.querySelector('#bar-scroll');
   clonedScroll.style.overflow = 'visible';
   clonedScroll.style.flex = 'none';
@@ -1177,7 +1217,7 @@ async function copyChartAsImage(){
   if (clonedEmpty) clonedEmpty.style.position = 'static';
 
   const panelWrap = document.createElement('div');
-  panelWrap.style.cssText = `position:relative;width:${EXPORT_W}px;overflow:visible;background:#f6f1e7;padding-bottom:8px;`;
+  panelWrap.style.cssText = `position:relative;width:${EXPORT_W}px;overflow:visible;background:#f6f1e7;padding-bottom:0;`;
   panelWrap.appendChild(panelClone);
 
   const footer = document.createElement('div');
@@ -1200,11 +1240,21 @@ async function copyChartAsImage(){
       const h = Number(liveSvg.getAttribute('height')) || liveSvg.getBoundingClientRect().height;
       if(w < 1 || h < 1) continue;
       const targetW = w*scale, targetH = h*scale;
+      /* BOTTOM_PAD keeps the last bar clear of the footer icon cluster on
+         screen. The export drops the icons, so on the way out that reserve is
+         nothing but a dead strip between the deepest donor label and the
+         legend. It is measured off the live chart's own bbox rather than
+         guessed at, so whatever the geometry becomes the crop follows it and
+         can never reach a mark — see USTExport.bottomReserve. */
+      const trim = svg.id === 'bar-svg'
+        ? USTExport.bottomReserve(liveSvg, targetH, 6)
+        : 0;
       try{
-        const {img} = await svgToPngImage(liveSvg, targetW, targetH);
+        let {img} = await svgToPngImage(liveSvg, targetW, targetH);
+        if(trim > 0) img = await cropBottom(img, targetH, trim);
         img.style.cssText = svg.getAttribute('style') || '';
         img.style.width = Math.round(targetW) + 'px';
-        img.style.height = Math.round(targetH) + 'px';
+        img.style.height = Math.round(targetH - trim) + 'px';
         img.style.display = 'block';
         if(svg.getAttribute('class')) img.className = svg.getAttribute('class');
         svg.replaceWith(img);

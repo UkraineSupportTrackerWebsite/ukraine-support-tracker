@@ -365,9 +365,10 @@ function showCopyToast(msg){
 }
 
 document.getElementById('opt-link').addEventListener('click', () => {
-  navigator.clipboard.writeText(window.location.href).catch(()=>{});
+  /* The published tracker page, not this iframe's own URL. Called
+     synchronously: writeText needs the tap's activation too. */
+  USTExport.copyLink({onStatus: showCopyToast, copied: 'Link copied!', failed: 'Could not copy link'});
   document.getElementById('share-dropdown').classList.remove('open');
-  showCopyToast('Link copied!');
 });
 
 /* ═════════════════════════════════════════════════════════════════════

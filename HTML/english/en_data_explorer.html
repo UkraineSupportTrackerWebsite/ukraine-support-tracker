@@ -1986,6 +1986,10 @@ function renderLine(){
      the same visual result every time. */
   const LINE_CHART_NATIVE_W=953, LINE_CHART_NATIVE_H=489;
   let W=LINE_CHART_NATIVE_W, H=LINE_CHART_NATIVE_H;
+  /* Set when the two constants below are replaced by the box's own size —
+     which is also the point at which the drawing stops being letterboxed and
+     has to carry its own margins. See the gutter block further down. */
+  let measured=false;
   /* In standalone/fluid mode the wrap's height follows the window, so the
      native height no longer matches the box the SVG actually gets — pinning it
      would letterbox the chart (viewBox meet). Measure the content box instead. clientWidth/clientHeight are layout px, unaffected by the outer
@@ -1994,25 +1998,59 @@ function renderLine(){
   /* Mobile joins fluid here: with the transform gone the SVG is laid out at
      real pixels, so the native 953×489 constants would overflow the box
      rather than being scaled into it. */
-  /* Not while staged for an image export: USTExport puts the card in an
-     off-screen box with exactly the landing page's embedded geometry (see
-     applyScale), so the native constants are the right ones — measuring here
-     would instead pick up the box's own rounding and draw the plot at a
-     slightly different aspect than every other device produces. */
-  if((document.documentElement.classList.contains('fluid') ||
+  /* An image export measures too, and for the same reason. USTExport stages
+     the card in an off-screen box with exactly the landing page's embedded
+     geometry (see applyScale), and the native constants used to be kept there
+     on the grounds that the geometry was already canonical. It is — but the
+     box the SVG actually gets is not 953×489: .line-chart-wrap is flex:1 in a
+     fixed 730px-tall card, so every row above and below it (and in particular
+     a series legend that wraps onto four lines once most donors are selected)
+     takes height out of it. The SVG is CSS width:100%/height:100% over a
+     953×489 viewBox, so a shorter, wider box does not crop or reflow — it
+     LETTERBOXES: preserveAspectRatio scales the whole drawing down until it
+     fits vertically and centres it, leaving cream margins down both sides.
+     That is the exported line chart not filling the card's width.
+     Measuring the box is what makes the plot span it. The staging box is the
+     same on every device, so this stays device-independent — only the
+     selection changes it, which is the intent. */
+  if((document.documentElement.classList.contains('exporting-desktop') ||
+      document.documentElement.classList.contains('fluid') ||
       document.documentElement.classList.contains('mobile')) &&
-     !document.documentElement.classList.contains('exporting-desktop') &&
      !document.fullscreenElement){
     const lw=document.querySelector('.line-chart-wrap');
     if(lw){
       const cs=getComputedStyle(lw);
       const mw=lw.clientWidth  - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       const mh=lw.clientHeight - parseFloat(cs.paddingTop)  - parseFloat(cs.paddingBottom);
-      if(mw>80 && mh>80){ W=Math.round(mw); H=Math.round(mh); }
+      if(mw>80 && mh>80){ W=Math.round(mw); H=Math.round(mh); measured=true; }
     }
   }
   const lcStyle=currentLineChartStyle();
   const pad={t:lcStyle.padTop,r:lcStyle.padRight,b:lcStyle.padBottom,l:lcStyle.padLeft};
+
+  /* ── real gutters once the viewBox matches the box ──────────────────
+     The desktop paddings (20 left, 40 right) are narrower than the things
+     drawn in them: a "120.0" tick label is ~40px wide and is anchored to the
+     LEFT of x=pad.l, the unit caption sits at x=-30 outside the viewBox
+     entirely, and the end-of-line country names are wrapped to whatever room
+     is left past the plot. At the native 953×489 that works only because the
+     drawing is letterboxed — the box is wider than 953:489, so
+     preserveAspectRatio="meet" scales the whole chart down and centres it,
+     and all of that overspill lands in the cream margins it leaves behind.
+
+     Those margins are exactly why the chart did not fill the width. When the
+     viewBox is measured from the box there is no slack anywhere, so the
+     gutters have to be actual padding — and the plot ends up wider than the
+     letterboxed drawing was, at full type size. The phone block already
+     carries its own, tighter set and draws no end labels, so it is left
+     alone; this is the desktop style filling a box. */
+  const unitLabelX = lcStyle.unitLabelX !== undefined ? lcStyle.unitLabelX
+                   : (measured ? 4 : -30);
+  if(measured && lcStyle.unitLabelX === undefined){
+    pad.l = Math.max(pad.l, 56);    // widest y tick label + its tick and padding
+    pad.r = Math.max(pad.r, 130);   // a wrapped country name, two lines at most
+  }
+
   const iW=W-pad.l-pad.r,iH=H-pad.t-pad.b;
 
   const svg=d3.select('#line-svg').attr('viewBox',`0 0 ${W} ${H}`).attr('width',W).attr('height',H);
@@ -2063,7 +2101,7 @@ function renderLine(){
     .attr('fill','#000');
   yLabelLines.forEach((line, i) =>
     yLabelEl.append('tspan')
-      .attr('x', lcStyle.unitLabelX === undefined ? -30 : lcStyle.unitLabelX)
+      .attr('x', unitLabelX)
       .attr('y', yLabelTopY + i * yLabelLineGap)
       .text(line)
   );
@@ -2437,8 +2475,10 @@ function toast(msg){
 }
 
 document.getElementById('opt-link').addEventListener('click',()=>{
-  navigator.clipboard.writeText(window.location.href).catch(()=>{});
-  shareDrop.classList.remove('open'); toast('Link copied!');
+  /* The published tracker page, not this iframe's own URL. Called
+     synchronously: writeText needs the tap's activation too. */
+  USTExport.copyLink({onStatus: toast, copied: 'Link copied!', failed: 'Could not copy link'});
+  shareDrop.classList.remove('open');
 });
 /* CSS gives shapes their stroke/fill via stylesheet rules that won't travel with a
    standalone serialized SVG, so bake the relevant computed styles into inline
@@ -2464,6 +2504,18 @@ function svgToPngImage(svgEl, w, h){
     inlineComputedStyles(svgEl, clone);
     clone.setAttribute('width', w);
     clone.setAttribute('height', h);
+    /* …and again as CSS, because a `width` / `height` in the element's own
+       style attribute beats the presentation attributes just set — and
+       inlineComputedStyles copies that attribute onto the clone. #axis-svg
+       carries one (renderChart pins it to the scroller's width with d3
+       .style), so the serialized SVG declared an intrinsic width of the LIVE
+       card while the <img> it became was stretched to export width: the unit
+       label ("€ billion" / "Mrd. €") came out horizontally stretched and
+       vertically half-size, while every other chart SVG — none of which has an
+       inline width — rasterized correctly. Setting both leaves nothing for the
+       engine to choose between. */
+    clone.style.setProperty('width', w + 'px');
+    clone.style.setProperty('height', h + 'px');
     if(!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
     const xml = new XMLSerializer().serializeToString(clone);
     const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
@@ -2827,7 +2879,19 @@ async function copyChartAsImage(){
        and the chart. Shrink it to match the export's tighter look. */
     if(activeTab === 'line'){
       const lineWrapClone = panelClone.querySelector('.line-chart-wrap');
-      if(lineWrapClone) lineWrapClone.style.paddingTop = '0.6rem';
+      const liveLineWrap = panel.querySelector('.line-chart-wrap');
+      if(lineWrapClone && liveLineWrap){
+        const EXPORT_PAD_TOP = 10;   // px, was 3rem on screen
+        const livePadTop = parseFloat(getComputedStyle(liveLineWrap).paddingTop) || 0;
+        lineWrapClone.style.paddingTop = EXPORT_PAD_TOP + 'px';
+        /* panelWrap's height is the live card's aspect ratio blown up to
+           EXPORT_W, and that still counts the padding just removed — so the
+           whole column shifts up and leaves exactly that many px of cream
+           between the legend and the source note. Take them back. */
+        const shed = Math.max(0, (livePadTop - EXPORT_PAD_TOP) * scale);
+        const wrapH = parseFloat(panelWrap.style.height) || 0;
+        if(wrapH > shed) panelWrap.style.height = Math.round(wrapH - shed) + 'px';
+      }
     }
     const barLegend = panelClone.querySelector('#bar-legend');
     if(barLegend) barLegend.style.fontSize = EXPORT_STYLE.legendFontSize.bar + 'px';

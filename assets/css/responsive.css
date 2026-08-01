@@ -163,6 +163,86 @@
     max-width: calc(100vw - 1.4rem);
   }
 
+  /* ── PHONE: legend column beside the action buttons ──────────────────
+     Phone vs. iPad is decided here, by the same 560px this whole block uses.
+     A phone in portrait reports 320–430 CSS px and matches; iPad portrait
+     reports 768 and iPad landscape 1024, so neither this nor anything else in
+     this block ever reaches them — tablet and desktop keep the layout they
+     have. en_total_allocations.html asks the same question of matchMedia, so
+     the two halves of the rule cannot drift apart.
+
+     Stacked, the card ended with a two-row legend, then a reserved band, then
+     the buttons — the band being the strip USTLayout.applyFooterBand() puts
+     under the legend so the buttons do not float over it. Two separate rows of
+     chrome for what is one row of information, and a visible hole between
+     them.
+
+     Here the two sit side by side instead: the legend becomes a single column
+     down the left, the buttons a column-width block to its right, and both
+     start on the same line. That costs no more height than the band did, and
+     because the buttons no longer overlap the legend the page turns the band
+     off (see isPhoneCard() there) and hands those pixels back to the plot.
+
+     Done as a grid on the card rather than by moving nodes: .chart-footer is
+     absolutely positioned precisely so it can float over the plot, and the one
+     thing that cannot do is share a row with the legend. Re-declaring the
+     card's five flow children as grid areas puts them in a row without
+     touching the markup, so both language builds and the export path (which
+     is excluded via html:not(.exporting-desktop) and keeps the desktop
+     layout) are unaffected.
+
+     Scoped by :has(#cat-custom), this card's own category selector, the same
+     handle the clearance rule further down already uses to name it. NOT by
+     :has(.line-legend): the Data Explorer has a .line-legend too, for its Line
+     view, so that selector reached inside the explorer as well — re-declaring
+     a card whose children are .left-panel / .right-panel as this grid left
+     them unplaced and threw its action buttons to the bottom LEFT. The
+     explorer owns its own phone layout (html.mobile, further down); nothing
+     here may touch it. */
+  html:not(.exporting-desktop) #explorer-wrap:has(#cat-custom) {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas:
+      "header   header"
+      "controls controls"
+      "chart    chart"
+      "legend   footer";
+  }
+  html:not(.exporting-desktop) #explorer-wrap:has(#cat-custom) .chart-header   { grid-area: header; }
+  html:not(.exporting-desktop) #explorer-wrap:has(#cat-custom) .chart-controls { grid-area: controls; }
+  /* min-height:0 so the 1fr row may shrink below the svg's intrinsic size —
+     the flex:1 the pane carries for the desktop layout means nothing here. */
+  html:not(.exporting-desktop) #explorer-wrap:has(#cat-custom) .line-chart-wrap {
+    grid-area: chart;
+    min-height: 0;
+  }
+  /* One item per line. flex-wrap must go with it: left as `wrap`, a column
+     flex box that runs out of room starts a SECOND column rather than
+     overflowing, which would put half the series back on the right. */
+  html:not(.exporting-desktop) #explorer-wrap:has(#cat-custom) .line-legend {
+    grid-area: legend;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 0.3rem;
+    padding: 0 0.5rem 0.55rem 0.85rem;
+    min-width: 0;
+  }
+  /* Static: in flow as a grid item, no longer floating over the plot, so the
+     blurred backdrop behind the buttons has nothing left to sit on top of.
+     align-self:start is what puts the first button on the legend's first line;
+     padding-top:0 keeps it exactly there, since the legend has none. */
+  html:not(.exporting-desktop) #explorer-wrap:has(#cat-custom) .chart-footer {
+    grid-area: footer;
+    position: static;
+    align-self: start;
+    padding: 0 0.85rem 0.55rem 0;
+  }
+  html:not(.exporting-desktop) #explorer-wrap:has(#cat-custom) .footer-icons::before {
+    content: none;
+  }
+
   /* ── lift the action buttons off the bottom edge ──────────────────
      Scoped by each card's own selector control (#region-custom on the region
      ranking, #cat-custom on the by-category timeline), since the footer

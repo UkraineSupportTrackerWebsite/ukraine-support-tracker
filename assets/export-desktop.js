@@ -270,6 +270,104 @@ window.USTExport = (function () {
      bug straight back.
   ══════════════════════════════════════════════════════════════════ */
 
+  /* ══════════════════════════════════════════════════════════════════
+     "COPY LINK" POINTS AT THE PUBLISHED TRACKER
+
+     Not at window.location.href. Every chart runs inside an iframe on the
+     landing page, so location.href was the iframe's own document — sharing
+     it handed the reader a bare chart file with no page around it. What a
+     reader means by "copy link to chart" is the Ukraine Support Tracker as
+     the Kiel Institute publishes it, so that is what gets copied, in the
+     language the chart is being read in.
+
+     Fixed URLs by request. Both verified 200 with no redirect and confirmed
+     by the pages' own <link rel="canonical">. Note the institute now serves
+     from kielinstitut.de — the old ifw-kiel.de paths still work but only via
+     a redirect, and the German path changed (themendossiers → themen).
+  ══════════════════════════════════════════════════════════════════ */
+  const TRACKER_URL = {
+    en: 'https://www.kielinstitut.de/topics/war-against-ukraine/ukraine-support-tracker/',
+    de: 'https://www.kielinstitut.de/de/themen/krieg-gegen-die-ukraine/ukraine-support-tracker/'
+  };
+
+  /** The published tracker page for the language this chart is rendered in. */
+  function trackerUrl() {
+    return TRACKER_URL[document.documentElement.lang === 'de' ? 'de' : 'en'];
+  }
+
+  /**
+   * Copy that URL. Call synchronously from the click handler — writeText
+   * needs the tap's user activation just as clipboard.write does, and here
+   * there is nothing to compute first, so there is nothing to await.
+   *
+   * @param {Object} opts  onStatus {Function}, copied/failed {string}
+   */
+  function copyLink(opts) {
+    opts = opts || {};
+    const status = opts.onStatus || function () {};
+    const de     = document.documentElement.lang === 'de';
+    const copied = opts.copied || (de ? 'Link kopiert!' : 'Link copied!');
+    const failed = opts.failed || (de ? 'Link konnte nicht kopiert werden'
+                                      : 'Could not copy link');
+
+    let write;
+    try {
+      write = (navigator.clipboard && navigator.clipboard.writeText)
+        ? navigator.clipboard.writeText(trackerUrl())
+        : Promise.reject(new Error('no clipboard'));
+    } catch (e) {
+      write = Promise.reject(e);
+    }
+    /* The old code swallowed a rejection and toasted "Link copied!" anyway,
+       which told the reader something untrue on any browser that refused. */
+    return Promise.resolve(write)
+      .then(function () { status(copied); })
+      .catch(function () { status(failed); });
+  }
+
+  /**
+   * How much of a rasterized chart's bottom edge is empty reserve, in the
+   * raster's own px — i.e. how much can be cropped without touching a mark.
+   *
+   * A chart's bottom padding is usually sized for something other than the
+   * chart: clearing a footer icon cluster, or lining a baseline up with the
+   * card next to it. An export drops those constraints, so that reserve turns
+   * into dead space between the axis labels and the data-source note, and the
+   * export crops it off.
+   *
+   * How much to crop was a hard-coded number of export px, which is only ever
+   * right for one set of live dimensions. Change a height anywhere upstream of
+   * the plot — the card's aspect, its min height, the bottom padding itself —
+   * and the same number starts cutting through the axis labels instead of the
+   * dead space beneath them, which is exactly what happened.
+   *
+   * So it is measured instead: getBBox() is the union of everything the chart
+   * actually drew, and its bottom edge is the deepest label. Whatever the
+   * geometry becomes, the crop follows it.
+   *
+   * @param {SVGSVGElement} liveSvg  the on-screen chart (not the clone)
+   * @param {number} targetH  height the raster is being drawn at, in px
+   * @param {number} [margin] breathing room to keep under the deepest mark,
+   *        in SVG user units
+   * @returns {number} px to crop off the bottom, never negative
+   */
+  function bottomReserve(liveSvg, targetH, margin) {
+    try {
+      const vb = liveSvg.viewBox && liveSvg.viewBox.baseVal;
+      const H  = vb && vb.height;
+      if (!H) return 0;
+      const bb = liveSvg.getBBox();
+      if (!bb || !bb.height) return 0;
+      const keep = Math.min(H, bb.y + bb.height + (margin || 0));
+      const trim = Math.round(targetH * (1 - keep / H));
+      return trim > 0 ? trim : 0;
+    } catch (e) {
+      /* getBBox throws on an SVG that is not being rendered. Cropping
+         nothing leaves the old dead strip, which is the harmless failure. */
+      return 0;
+    }
+  }
+
   /** canvas.toBlob as a promise. Pages use this to end their capture. */
   function canvasToBlob(canvas, type) {
     return new Promise(function (resolve, reject) {
@@ -350,7 +448,11 @@ window.USTExport = (function () {
     DESKTOP: DESKTOP,
     withDesktopLayout: withDesktopLayout,
     isExporting: isExporting,
+    TRACKER_URL: TRACKER_URL,
+    trackerUrl: trackerUrl,
+    copyLink: copyLink,
     logoElement: logoElement,
+    bottomReserve: bottomReserve,
     canvasToBlob: canvasToBlob,
     deliverPng: deliverPng
   };

@@ -10,6 +10,21 @@
 </head>
 <body>
 
+<!-- ═══════════════════════════════════════════════ PREVIEW BANNER ══ -->
+<!-- Only ever visible on a "?preview" URL. The widgets below pick preview
+     mode up on their own (see assets/data-loader.js) by reading this page's
+     query string, so the iframe sources never change. -->
+<script>
+  if (new URLSearchParams(location.search).has('preview')) {
+    document.write(
+      '<div style="position:fixed;left:50%;bottom:16px;transform:translateX(-50%);' +
+      'z-index:9999;background:#b3261e;color:#fff;font:600 13px/1.4 system-ui,sans-serif;' +
+      'padding:10px 16px;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.25);' +
+      'max-width:90vw;text-align:center;">PREVIEW — these charts show the CSVs in ' +
+      '<code style="font-size:12px">data-preview/</code>, not the published release.</div>');
+  }
+</script>
+
 <!-- ═══════════════════════════════════════════════════════ NAV ══ -->
 <nav>
   <div class="nav-inner">

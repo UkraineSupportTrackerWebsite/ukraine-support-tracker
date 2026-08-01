@@ -10,6 +10,21 @@
 </head>
 <body>
 
+<!-- ═══════════════════════════════════════════════════ VORSCHAU-HINWEIS ══ -->
+<!-- Nur auf einer "?preview"-URL sichtbar. Die Widgets unten erkennen den
+     Vorschaumodus selbst (siehe assets/data-loader.js), indem sie die
+     Query-String dieser Seite lesen — die iframe-Quellen bleiben unverändert. -->
+<script>
+  if (new URLSearchParams(location.search).has('preview')) {
+    document.write(
+      '<div style="position:fixed;left:50%;bottom:16px;transform:translateX(-50%);' +
+      'z-index:9999;background:#b3261e;color:#fff;font:600 13px/1.4 system-ui,sans-serif;' +
+      'padding:10px 16px;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.25);' +
+      'max-width:90vw;text-align:center;">VORSCHAU — diese Grafiken zeigen die CSVs aus ' +
+      '<code style="font-size:12px">data-preview/</code>, nicht die veröffentlichte Version.</div>');
+  }
+</script>
+
 <!-- ═══════════════════════════════════════════════════════ NAV ══ -->
 <nav>
   <div class="nav-inner">
