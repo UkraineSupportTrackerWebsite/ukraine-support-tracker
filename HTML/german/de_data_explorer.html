@@ -59,7 +59,7 @@
     <div class="chart-header">
       <div class="chart-title" id="chart-title-text">Hilfsleistungen an die Ukraine, nach Geber</div>
       <div style="margin-top:0.3rem">
-        <div class="chart-subtitle" id="chart-subtitle">Gesamte bilaterale staatliche Hilfszuweisungen an die Ukraine in Mrd. €.</div>
+        <div class="chart-subtitle" id="chart-subtitle">Gesamte bilaterale Hilfszuweisungen an die Ukraine in Mrd. €.</div>
         <div class="chart-subtitle" style="color:var(--mid);margin-top:0.1rem"><span id="year-label">Jan. 2022–Apr. 2026</span></div>
       </div>
       <div class="kiel-logo">
@@ -1003,12 +1003,12 @@ function metricTitle(m) {
   return 'Hilfsleistungen an die Ukraine, nach Geber';
 }
 function metricSubtitle(m) {
-  if(m==='pct') return 'Bilaterale staatliche Hilfszuweisungen an die Ukraine als Anteil am BIP des Gebers (%).';
-  if(m==='fin') return 'Bilaterale staatliche finanzielle Hilfszuweisungen an die Ukraine in Mrd. €.';
-  if(m==='mil') return 'Bilaterale staatliche militärische Hilfszuweisungen an die Ukraine in Mrd. €.';
-  if(m==='hum') return 'Bilaterale staatliche humanitäre Hilfszuweisungen an die Ukraine in Mrd. €.';
-  if(m==='alloc_commit') return 'Bereits zugewiesene und noch zuzuweisende bilaterale staatliche Hilfe an die Ukraine, in Mrd. €.';
-  return 'Gesamte bilaterale staatliche Hilfszuweisungen an die Ukraine in Mrd. €.';
+  if(m==='pct') return 'Bilaterale Hilfszuweisungen an die Ukraine als Anteil am BIP des Gebers (%).';
+  if(m==='fin') return 'Bilaterale finanzielle Hilfszuweisungen an die Ukraine in Mrd. €.';
+  if(m==='mil') return 'Bilaterale militärische Hilfszuweisungen an die Ukraine in Mrd. €.';
+  if(m==='hum') return 'Bilaterale humanitäre Hilfszuweisungen an die Ukraine in Mrd. €.';
+  if(m==='alloc_commit') return 'Bereits zugewiesene und noch zuzuweisende bilaterale Hilfe an die Ukraine, in Mrd. €.';
+  return 'Gesamte bilaterale Hilfszuweisungen an die Ukraine in Mrd. €.';
 }
 
 const colorScaleInterp = d3.interpolateRgbBasis(MAP_COLORS);
@@ -3505,7 +3505,11 @@ main();
      box. Below MOBILE_MAX_W the transform is dropped, the internal layout
      reflows into a single column, and text renders at its real size. */
   const MOBILE_MAX_W = 700;
-  const fluid = document.documentElement.classList.contains('fluid');
+  /* Live check rather than a snapshot taken at startup. Besides the flag set
+     before first paint for a standalone tab, the class is now also switched
+     on at runtime when we discover an embedder that cannot resize us — see
+     checkHostHeight(). */
+  function isFluid(){ return document.documentElement.classList.contains('fluid'); }
   const container = document.getElementById('explorer-scale-container');
   const wrap = document.getElementById('explorer-wrap');
   if(!container || !wrap) return;
@@ -3536,6 +3540,49 @@ main();
   }
 
   let lastH = null;
+
+  /* ── embedders that cannot resize the iframe ────────────────────────────
+     The embedded branch below is a bargain with the host page: we scale the
+     fixed 1155×730 design to the iframe's WIDTH and post back the height that
+     implies, and the host resizes the iframe to it (en_index.html does — see
+     IFRAME_BY_TYPE there). Where the iframe is wider than 1155px the height
+     we ask for is LARGER than the design height: at 1282px of width the scale
+     is 1.11 and the card wants 810px. A host that pins the iframe instead
+     (height:732px!important and no message listener, which is how the embed
+     snippet was handed to other sites) therefore clips 78px off the bottom —
+     the colour legend and the timeline disappear under the fold.
+
+     Whether a host will honour the message cannot be known in advance, but
+     the result can be observed: inside an iframe our own viewport height IS
+     the iframe's height. So post, wait, and look. If the box never grew to
+     what we asked for, nobody is listening, and the honest response is to fit
+     the card into the height we actually have. That is exactly what fluid
+     mode already does for a standalone window, so switching the class on
+     hands the work to that tested branch: the same width-derived scale (no
+     distortion), with the internal flex layout reflowing into the shorter box
+     instead of hanging off the end of it.
+
+     Only ever switched on, never off. A host that does resize us passes the
+     check every time and never arrives here, so the landing page is
+     untouched. */
+  let hostCheckTimer = null;
+  function checkHostHeight(wanted){
+    if(isFluid()) return;
+    clearTimeout(hostCheckTimer);
+    hostCheckTimer = setTimeout(() => {
+      if(isFluid()) return;
+      /* A hidden or not-yet-laid-out iframe reports 0; that is not a host
+         refusing to resize, and treating it as one would strand the widget in
+         fluid mode for the rest of the session. */
+      if(!window.innerHeight) return;
+      /* A few px of slack for the host's own rounding and borders. */
+      if(window.innerHeight >= wanted - 4) return;
+      document.documentElement.classList.add('fluid');
+      lastH = null;                 // force the reflow below to re-render
+      applyScale();
+    }, 600);
+  }
+
   function applyScale(){
     if(document.fullscreenElement === wrap){
       wrap.style.transform = '';
@@ -3602,7 +3649,7 @@ main();
     applyMapLayoutZoom();
     applyTimelineLabelSize();
 
-    if(fluid){
+    if(isFluid()){
       const availH = container.clientHeight;
       let scale = availW / EXPLORER_W;
       let unscaledH = availH / scale;
@@ -3648,6 +3695,7 @@ main();
        so scaling down never leaves a blank gap or clips content. */
     if(window.parent !== window){
       window.parent.postMessage({type:'ust-explorer-height', height:h}, '*');
+      checkHostHeight(h);
     }
     /* Only when the reflow path above actually changed the box: at desktop
        widths the layout is untouched and main() has already drawn it. */

@@ -253,6 +253,30 @@
   html:not(.exporting-desktop) #explorer-wrap:has(#cat-custom) .chart-footer {
     padding-bottom: 1rem;
   }
+
+  /* ── weapons card: the "List of Weapons" column ───────────────────
+     Two things made that column read a size larger than the rest of the
+     table on a phone. First, iOS/Android text auto-inflation: the cell is
+     white-space:nowrap and width:100%, so it is by far the widest block on
+     the page and the browser "helpfully" scales its type up while leaving
+     the short donor/number cells at their declared size — the mismatch is
+     the whole complaint. text-size-adjust:100% on the table turns that off
+     for every cell at once, so the column can only ever be as big as it is
+     told to be. Second, at 0.78rem the joined "name (count), name (count)"
+     string is the longest thing in a card that is only ~358px wide; a step
+     down keeps it clearly subordinate to the figures it annotates.
+
+     Scoped by td.weapons-list, a class only this widget's table uses, so the
+     data explorer's tables are untouched. Excluded from the export path with
+     the same html:not(.exporting-desktop) as the rest of this block: the
+     image export stages the card at 631px and sets its own table sizes. */
+  html:not(.exporting-desktop) .data-table:has(td.weapons-list) {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  html:not(.exporting-desktop) .data-table td.weapons-list {
+    font-size: 0.7rem;
+  }
 }
 
 
