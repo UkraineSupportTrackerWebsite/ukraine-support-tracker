@@ -3565,6 +3565,15 @@ main();
      Only ever switched on, never off. A host that does resize us passes the
      check every time and never arrives here, so the landing page is
      untouched. */
+  /* How long to wait for the host to act on the height message before
+     concluding it never will. This is dead time the visitor sees as a clipped
+     card, so it is kept short: a host that listens resizes the iframe inside
+     its own message handler, which lands in the next frame or two, not in a
+     quarter second. The only thing a longer wait buys is tolerance for a host
+     that is both listening AND pathologically slow — and the cost of guessing
+     wrong there is only that we fit the card to the height we currently have,
+     which is a correct-looking card either way. */
+  const HOST_CHECK_MS = 250;
   let hostCheckTimer = null;
   function checkHostHeight(wanted){
     if(isFluid()) return;
@@ -3580,7 +3589,7 @@ main();
       document.documentElement.classList.add('fluid');
       lastH = null;                 // force the reflow below to re-render
       applyScale();
-    }, 600);
+    }, HOST_CHECK_MS);
   }
 
   function applyScale(){
@@ -3650,6 +3659,16 @@ main();
     applyTimelineLabelSize();
 
     if(isFluid()){
+      /* Drop any inline height BEFORE measuring. The embedded branch below
+         pins container.style.height to the height it asked the host for, and
+         that inline value beats the html.fluid `height:100%` rule. When
+         checkHostHeight() flips a pinned host into fluid mode, the very first
+         fluid pass would otherwise measure that stale, too-tall number (e.g.
+         936px inside a 732px iframe) and size the card to it — still clipped.
+         It only came right on the next resize, once the clear at the end of
+         this branch had taken effect: exactly the "shrink the window and it
+         fixes itself" symptom. Clearing first makes the first pass correct. */
+      container.style.height = '';
       const availH = container.clientHeight;
       let scale = availW / EXPLORER_W;
       let unscaledH = availH / scale;
