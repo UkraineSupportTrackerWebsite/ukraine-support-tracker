@@ -357,10 +357,14 @@ html.mobile .ust-donor-toggle {
 html.mobile .ust-donor-toggle svg { flex-shrink: 0; transition: transform 0.15s; }
 html.mobile .left-panel.open .ust-donor-toggle svg { transform: rotate(180deg); }
 
+/* Height derived from the card's WIDTH, never from vh — see the note under
+   .tbl-scroll below. ~7 rows at a 390px phone width, with a floor so a narrow
+   phone still shows a usable stack and a ceiling so a tablet-width phone does
+   not hand the list half the card. */
 html.mobile .left-list {
   flex: none;
   display: none;
-  max-height: 32vh;
+  max-height: clamp(190px, 62vw, 300px);
   overflow-y: auto;
   border-top: 1px solid #ddd6c8;
 }
@@ -471,9 +475,25 @@ html.mobile #bar-legend {
   flex-wrap: wrap;
   justify-content: flex-start;
 }
+/* ── why these panes are sized in vw and never in vh ──────────────────
+   In the phone layout the card has no fixed height: it is as tall as its
+   content, and applyScale() posts that height to the embedding page, which
+   resizes the iframe to match. Inside an iframe, `vh` IS that iframe's
+   height — so a vh-sized child is sized from a number it is itself feeding.
+
+   With the donor list open on the table tab the two rules together used to
+   resolve to h = base + 0.32h + 0.516h, i.e. h = base / 0.164: the card
+   climbed from ~450px to 1514px over several frames, and at every step of
+   that climb it was taller than the iframe the host had granted so far.
+   scrolling="no" clips the difference, which is the cut-off bottom edge —
+   flaky, because whether it settles depends on how quickly the host answers.
+
+   Width is not self-referential: the iframe's width comes from the host's
+   layout and is unaffected by anything we report. Every pane in this block
+   is therefore sized from vw, with a px floor and ceiling. */
 html.mobile .tbl-scroll {
   flex: none;
-  max-height: 51.6vh;  /* 43vh + 20%, so a phone shows ~a fifth more rows */
+  max-height: clamp(300px, 108vw, 470px);
   overflow: auto;
 }
 
